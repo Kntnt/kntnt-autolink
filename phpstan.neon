@@ -1,0 +1,19 @@
+includes:
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+	level: max
+	paths:
+		- classes
+		- kntnt-autolink.php
+		- autoloader.php
+	bootstrapFiles:
+		- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+	ignoreErrors:
+		# The runtime PHP-version guard is intentionally unreachable under the
+		# analysis runtime (which already satisfies the floor); it protects older
+		# installs at runtime and must not be removed to satisfy static analysis.
+		-
+			identifier: if.alwaysFalse
+			path: kntnt-autolink.php
+			count: 1

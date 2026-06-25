@@ -1,0 +1,37 @@
+{
+	"name": "kntnt/kntnt-autolink",
+	"description": "Rule-based keyword→URL autolinking for WordPress.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"require": {
+		"php": ">=8.4"
+	},
+	"require-dev": {
+		"pestphp/pest": "^4.0",
+		"brain/monkey": "^2.6",
+		"mockery/mockery": "^1.6",
+		"phpstan/phpstan": "^2.0",
+		"szepeviktor/phpstan-wordpress": "^2.0",
+		"php-stubs/wordpress-stubs": "^6.5"
+	},
+	"autoload": {
+		"psr-4": {
+			"Kntnt\\Autolink\\": "classes/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"Kntnt\\Autolink\\Tests\\": "tests/"
+		}
+	},
+	"scripts": {
+		"test": "pest",
+		"analyse": "phpstan analyse --memory-limit=1G"
+	},
+	"config": {
+		"allow-plugins": {
+			"pestphp/pest-plugin": true
+		},
+		"sort-packages": true
+	}
+}
