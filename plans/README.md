@@ -17,7 +17,7 @@ This is a **greenfield** build (no source yet — only the design doc and these 
 | 005 | Capabilities and lifecycle (`Capabilities`, `install.php`, `uninstall.php`) | P1 | S | 001, 004 | DONE |
 | 006 | `Content_Filter`, the public filter API, and `Plugin` wiring | P1 | M | 003, 004, 005 | DONE |
 | 007 | Admin `Tools_Page` — keyword CRUD + admin-only rules section | P2 | L | 004, 005 | DONE |
-| 008 | Integration tests on WordPress Playground | P2 | L | 006, 007 | TODO |
+| 008 | Integration tests on WordPress Playground | P2 | L | 006, 007 | DONE |
 | 009 | `README.md`, filter documentation, and the translation template | P3 | M | 006, 007 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).

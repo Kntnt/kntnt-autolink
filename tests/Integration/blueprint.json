@@ -1,0 +1,13 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"steps": [
+		{
+			"step": "activatePlugin",
+			"pluginPath": "kntnt-autolink/kntnt-autolink.php"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require '/wordpress/wp-content/plugins/kntnt-autolink/tests/Integration/seed.php';"
+		}
+	]
+}
