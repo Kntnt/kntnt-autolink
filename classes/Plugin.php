@@ -42,6 +42,11 @@ final class Plugin {
 		$content_filter = new Content_Filter( $settings, $keywords, $linker );
 		$content_filter->register_hooks();
 
+		// The admin UI is only needed in the admin context.
+		if ( is_admin() ) {
+			( new Admin\Tools_Page( $settings, $keywords ) )->register_hooks();
+		}
+
 	}
 
 }
