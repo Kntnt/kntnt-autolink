@@ -14,7 +14,7 @@ This is a **greenfield** build (no source yet — only the design doc and these 
 | 002 | The `Keyword` and `Ruleset` value objects (test-first) | P1 | M | 001 | DONE |
 | 003 | The pure `Linker` engine (test-first) | P1 | L | 002 | DONE |
 | 004 | `Settings_Repository` and `Keyword_Repository` (test-first) | P1 | M | 002 | DONE |
-| 005 | Capabilities and lifecycle (`Capabilities`, `install.php`, `uninstall.php`) | P1 | S | 001, 004 | TODO |
+| 005 | Capabilities and lifecycle (`Capabilities`, `install.php`, `uninstall.php`) | P1 | S | 001, 004 | DONE |
 | 006 | `Content_Filter`, the public filter API, and `Plugin` wiring | P1 | M | 003, 004, 005 | TODO |
 | 007 | Admin `Tools_Page` — keyword CRUD + admin-only rules section | P2 | L | 004, 005 | TODO |
 | 008 | Integration tests on WordPress Playground | P2 | L | 006, 007 | TODO |
