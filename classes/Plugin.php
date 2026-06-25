@@ -27,12 +27,21 @@ final class Plugin {
 	}
 
 	/**
-	 * Wires components and registers hooks.
-	 *
-	 * Intentionally empty until Plan 006 wires the Content_Filter.
+	 * Wires components in dependency order and registers their hooks.
 	 *
 	 * @since 1.0.0
 	 */
-	private function __construct() {}
+	private function __construct() {
+
+		// Instantiate the repositories and the pure engine, then wire the
+		// content filter that bridges them to the_content.
+		$settings = new Settings_Repository();
+		$keywords = new Keyword_Repository();
+		$linker = new Linker();
+
+		$content_filter = new Content_Filter( $settings, $keywords, $linker );
+		$content_filter->register_hooks();
+
+	}
 
 }
