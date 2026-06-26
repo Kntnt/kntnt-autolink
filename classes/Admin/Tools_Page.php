@@ -149,6 +149,7 @@ final class Tools_Page {
 		echo '<div class="wrap">';
 		echo '<h1 class="wp-heading-inline">' . esc_html__( 'Autolink', 'kntnt-autolink' ) . '</h1>';
 		echo ' <a href="#" class="page-title-action kntnt-autolink-add">' . esc_html__( 'Add link group', 'kntnt-autolink' ) . '</a>';
+		$this->render_settings_link();
 		echo '<hr class="wp-header-end">';
 		echo '<p>' . esc_html__( 'A link group turns any of its phrases into links to one URL, sharing one group cap.', 'kntnt-autolink' ) . '</p>';
 
@@ -355,7 +356,33 @@ final class Tools_Page {
 	 * @since 1.1.0
 	 */
 	private function page_url(): string {
+		return self::url();
+	}
+
+	/**
+	 * The public admin URL of the Tools → Autolink screen, at the real registered
+	 * slug. The single authority other surfaces (the Settings cross-link, the
+	 * Plugins-screen action links) build the Tools link from.
+	 *
+	 * @since 1.1.0
+	 */
+	public static function url(): string {
 		return admin_url( 'tools.php?page=' . self::SLUG );
+	}
+
+	/**
+	 * Render a contextual link to the Settings → Autolink screen, shown only to
+	 * administrators. An editor can use this manager (the manage-link-groups
+	 * capability) but not the manage_options-gated Settings page, so gating the
+	 * link to manage_options keeps it off an editor's screen and never sends them
+	 * to a permission wall.
+	 *
+	 * @since 1.1.0
+	 */
+	public function render_settings_link(): void {
+		if ( current_user_can( 'manage_options' ) ) {
+			echo ' <a href="' . esc_url( Settings_Page::url() ) . '" class="page-title-action">' . esc_html__( 'Settings', 'kntnt-autolink' ) . '</a>';
+		}
 	}
 
 	/**

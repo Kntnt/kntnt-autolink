@@ -145,6 +145,8 @@ it( 'sanitize tolerates a non-array submission', function (): void {
 
 it( 'renders the form against options.php through the Settings API', function (): void {
 	stub_settings_page_i18n();
+	Functions\when( 'esc_url' )->returnArg( 1 );
+	Functions\when( 'admin_url' )->alias( static fn ( $path = '' ): string => 'https://example.test/wp-admin/' . $path );
 	Functions\when( 'current_user_can' )->justReturn( true );
 	Functions\when( 'get_admin_page_title' )->justReturn( 'Autolink' );
 	Functions\when( 'settings_fields' )->alias( static fn ( $group ) => print( "[settings_fields:{$group}]" ) );
@@ -159,6 +161,18 @@ it( 'renders the form against options.php through the Settings API', function ()
 	expect( $html )->toContain( '[settings_fields:kntnt_autolink]' );
 	expect( $html )->toContain( '[do_settings_sections:kntnt-autolink]' );
 	expect( $html )->toContain( '[submit_button]' );
+} );
+
+it( 'renders a cross-link to the Tools link-group manager on the Settings page', function (): void {
+	stub_settings_page_i18n();
+	Functions\when( 'esc_url' )->returnArg( 1 );
+	Functions\when( 'admin_url' )->alias( static fn ( $path = '' ): string => 'https://example.test/wp-admin/' . $path );
+
+	ob_start();
+	make_settings_page()->render_tools_link();
+	$html = (string) ob_get_clean();
+
+	expect( $html )->toContain( 'tools.php?page=kntnt-autolink' );
 } );
 
 it( 'refuses to render without manage_options', function (): void {

@@ -213,6 +213,35 @@ it( 'applies a confirmed no-JS delete over the repository, gated capability-then
 	expect( $captured[0]['id'] )->toBe( 'g3' );
 } );
 
+it( 'shows the Settings cross-link on the Tools page to an administrator', function (): void {
+	Functions\when( 'esc_html__' )->returnArg( 1 );
+	Functions\when( 'esc_url' )->returnArg( 1 );
+	Functions\when( 'admin_url' )->alias( static fn ( $path = '' ): string => 'https://example.test/wp-admin/' . $path );
+	Functions\when( 'current_user_can' )->justReturn( true );
+
+	ob_start();
+	make_tools_page()->render_settings_link();
+	$html = (string) ob_get_clean();
+
+	expect( $html )->toContain( 'options-general.php?page=kntnt-autolink' );
+} );
+
+it( 'hides the Settings cross-link on the Tools page from an editor without manage_options', function (): void {
+	Functions\when( 'esc_html__' )->returnArg( 1 );
+	Functions\when( 'esc_url' )->returnArg( 1 );
+	Functions\when( 'admin_url' )->alias( static fn ( $path = '' ): string => 'https://example.test/wp-admin/' . $path );
+
+	// An editor can use the Tools manager (manage-link-groups) but lacks
+	// manage_options, so the cross-link must not send them to a permission wall.
+	Functions\when( 'current_user_can' )->justReturn( false );
+
+	ob_start();
+	make_tools_page()->render_settings_link();
+	$html = (string) ob_get_clean();
+
+	expect( $html )->toBe( '' );
+} );
+
 it( 'reads the no-JS set-cap value numerically, matching the REST absint path rather than sanitize_key', function (): void {
 	$_REQUEST = [
 		'kntnt_autolink_bulk_confirm' => '1',

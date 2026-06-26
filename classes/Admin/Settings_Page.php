@@ -251,6 +251,17 @@ final class Settings_Page {
 	}
 
 	/**
+	 * The public admin URL of the Settings → Autolink screen, at the real
+	 * registered slug. The single authority other surfaces (the Tools cross-link,
+	 * the Plugins-screen action links) build the Settings link from.
+	 *
+	 * @since 1.2.0
+	 */
+	public static function url(): string {
+		return admin_url( 'options-general.php?page=' . self::SLUG );
+	}
+
+	/**
 	 * Render the page shell and hand the body to the Settings API. Administrators
 	 * only; the field callbacks read only this manage_options-gated screen's data.
 	 *
@@ -264,6 +275,7 @@ final class Settings_Page {
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html( get_admin_page_title() ) . '</h1>';
+		$this->render_tools_link();
 		echo '<form method="post" action="options.php">';
 		settings_fields( self::GROUP );
 		do_settings_sections( self::SLUG );
@@ -271,6 +283,17 @@ final class Settings_Page {
 		echo '</form>';
 		echo '</div>';
 
+	}
+
+	/**
+	 * Render a contextual link to the Tools → Autolink link-group manager. This
+	 * page is manage_options-only, so the reader can always reach the Tools
+	 * manager; no capability gate is needed here.
+	 *
+	 * @since 1.2.0
+	 */
+	public function render_tools_link(): void {
+		echo '<p><a href="' . esc_url( Tools_Page::url() ) . '">' . esc_html__( 'Manage link groups', 'kntnt-autolink' ) . '</a></p>';
 	}
 
 	/**

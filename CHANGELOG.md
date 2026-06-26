@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A domain glossary (`CONTEXT.md`) defining the project's ubiquitous language (Autolink, Link group, Phrase, Group cap, Post cap, Term targeting).
 - Architecture decision records for the planned admin UI redesign: a server-rendered admin UI with a REST-backed modal (ADR 0001), a Settings/Tools split of the admin information architecture (ADR 0002), and the self-healing in-place upgrade routine that carries released 1.0.0 sites onto the link-group model despite the brief's "no migration" premise (ADR 0003).
+- Reciprocal cross-navigation between the two Autolink admin screens, plus quick links on the Plugins screen (ADR 0002): Settings → Autolink links to the Tools link-group manager, the Tools manager links back to Settings for administrators only (an editor who cannot reach the `manage_options`-gated Settings page never sees the link), and the plugin's action-links row on the Plugins screen carries both a **Link groups** and a **Settings** link.
 
 ### Changed
 

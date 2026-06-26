@@ -78,10 +78,13 @@ final class Plugin {
 		( new Term_Search_Controller() )->register_hooks();
 
 		// The admin screens are only needed in the admin context: the link-group
-		// manager under Tools, the structural rules under Settings.
+		// manager under Tools, the structural rules under Settings, and the
+		// reciprocal cross-links plus the Plugins-screen action links that tie them
+		// together.
 		if ( is_admin() ) {
 			( new Admin\Tools_Page( $groups, $plugin_file, self::VERSION ) )->register_hooks();
 			( new Admin\Settings_Page( $settings, $plugin_file, self::VERSION ) )->register_hooks();
+			( new Admin\Action_Links( $plugin_file ) )->register_hooks();
 		}
 
 	}
