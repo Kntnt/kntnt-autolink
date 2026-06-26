@@ -17,7 +17,7 @@ final class Content_Filter {
 	 */
 	public function __construct(
 		private readonly Settings_Repository $settings,
-		private readonly Keyword_Repository $keywords,
+		private readonly Link_Group_Repository $groups,
 		private readonly Linker $linker,
 	) {}
 
@@ -32,7 +32,7 @@ final class Content_Filter {
 	}
 
 	/**
-	 * Link eligible keyword occurrences in post content, or pass it through
+	 * Link eligible phrase occurrences in post content, or pass it through
 	 * untouched when out of scope or short-circuited.
 	 *
 	 * @since 1.0.0
@@ -55,13 +55,13 @@ final class Content_Filter {
 			return $content;
 		}
 
-		// Keyword set, filterable for config-as-code / overrides.
-		$filtered = apply_filters( 'kntnt_autolink_keywords', $this->keywords->all() );
+		// Link-group set, filterable for config-as-code / overrides.
+		$filtered = apply_filters( 'kntnt_autolink_link_groups', $this->groups->all() );
 		if ( ! is_array( $filtered ) ) {
 			return $content;
 		}
-		$keywords = array_values( array_filter( $filtered, static fn ( mixed $keyword ): bool => $keyword instanceof Keyword ) );
-		if ( $keywords === [] ) {
+		$groups = array_values( array_filter( $filtered, static fn ( mixed $group ): bool => $group instanceof Link_Group ) );
+		if ( $groups === [] ) {
 			return $content;
 		}
 
@@ -71,7 +71,7 @@ final class Content_Filter {
 		// Hand off to the pure engine, exposing the attribute filter through its callback.
 		return $this->linker->link(
 			$content,
-			$keywords,
+			$groups,
 			$rules,
 			static function ( array $attributes, array $context ): array {
 				$result = apply_filters( 'kntnt_autolink_link_attributes', $attributes, $context );
@@ -136,8 +136,6 @@ final class Content_Filter {
 			deny_xpath: $deny_xpath,
 			allow_only_xpath: $allow_only_xpath,
 			link_class: $base->link_class,
-			nofollow: $base->nofollow,
-			new_tab: $base->new_tab,
 			max_links_per_post: $base->max_links_per_post,
 		);
 

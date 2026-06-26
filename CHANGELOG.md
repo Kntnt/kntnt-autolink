@@ -9,7 +9,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - A domain glossary (`CONTEXT.md`) defining the project's ubiquitous language (Autolink, Link group, Phrase, Group cap, Post cap, Term targeting).
-- Architecture decision records for the planned admin UI redesign: a server-rendered admin UI with a REST-backed modal (ADR 0001) and a Settings/Tools split of the admin information architecture (ADR 0002).
+- Architecture decision records for the planned admin UI redesign: a server-rendered admin UI with a REST-backed modal (ADR 0001), a Settings/Tools split of the admin information architecture (ADR 0002), and the self-healing in-place upgrade routine that carries released 1.0.0 sites onto the link-group model despite the brief's "no migration" premise (ADR 0003).
+
+### Changed
+
+- Replaced the keyword model with the **link group** model: a set of equal, interchangeable phrases that share one URL, one group cap, and their own nofollow and new-tab behaviour. The option `kntnt_autolink_keywords` is renamed to `kntnt_autolink_link_groups` and the capability `kntnt_autolink_manage_keywords` to `kntnt_autolink_manage_link_groups`. An in-place update from 1.0.0 is repaired by a version-keyed upgrade routine that re-grants the renamed capability and folds the legacy keyword entries into link groups, so an updated site is never locked out of the Tools manager and keeps its data.
+- Moved the per-link `nofollow` and new-tab behaviour from the global structural rules onto each link group.
+- Tools → Autolink now lists link groups in a native `WP_List_Table` (Phrases · URL · Group cap) with an add/edit `<dialog>` modal and Edit/Delete row actions, saving over a REST API (`kntnt-autolink/v1`) secured with `X-WP-Nonce` and a capability check; the table body re-renders server-side after each change with no full page reload.
+- Relocated the structural rules to their own Settings → Autolink page, realising the Tools/Settings menu split.
+- Renamed the `kntnt_autolink_keywords` filter to `kntnt_autolink_link_groups` (now passing `Link_Group[]`); the `kntnt_autolink_link_attributes` context now carries `group_id` and `matched_text` instead of `keyword_id` and `base`.
+
+### Fixed
+
+- A `PUT`/`PATCH` to `kntnt-autolink/v1/link-groups/{id}` for an unknown id now returns `404` instead of silently creating a new group.
+- Removed an out-of-scope cross-navigation link from the Tools screen to the Settings screen (deferred to the admin redesign).
 
 ## [1.0.0] - 2026-06-25
 

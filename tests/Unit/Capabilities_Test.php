@@ -20,9 +20,9 @@ it( 'grants the capability only to roles that can edit others posts', function (
 	Functions\when( 'wp_roles' )->justReturn( $roles );
 
 	$administrator = fake_role( true );
-	$administrator->shouldReceive( 'add_cap' )->once()->with( 'kntnt_autolink_manage_keywords' );
+	$administrator->shouldReceive( 'add_cap' )->once()->with( 'kntnt_autolink_manage_link_groups' );
 	$editor = fake_role( true );
-	$editor->shouldReceive( 'add_cap' )->once()->with( 'kntnt_autolink_manage_keywords' );
+	$editor->shouldReceive( 'add_cap' )->once()->with( 'kntnt_autolink_manage_link_groups' );
 	$author = fake_role( false );
 	$author->shouldNotReceive( 'add_cap' );
 	$subscriber = fake_role( false );
@@ -46,9 +46,9 @@ it( 'revokes the capability from every role', function (): void {
 	Functions\when( 'wp_roles' )->justReturn( $roles );
 
 	$administrator = Mockery::mock();
-	$administrator->shouldReceive( 'remove_cap' )->once()->with( 'kntnt_autolink_manage_keywords' );
+	$administrator->shouldReceive( 'remove_cap' )->once()->with( 'kntnt_autolink_manage_link_groups' );
 	$editor = Mockery::mock();
-	$editor->shouldReceive( 'remove_cap' )->once()->with( 'kntnt_autolink_manage_keywords' );
+	$editor->shouldReceive( 'remove_cap' )->once()->with( 'kntnt_autolink_manage_link_groups' );
 
 	Functions\when( 'get_role' )->alias( static fn ( $slug ) => match ( $slug ) {
 		'administrator' => $administrator,

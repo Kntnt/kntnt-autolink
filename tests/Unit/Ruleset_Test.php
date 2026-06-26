@@ -22,8 +22,6 @@ function rules( array $overrides = [] ): Ruleset {
 		'deny_xpath' => null,
 		'allow_only_xpath' => null,
 		'link_class' => 'kntnt-autolink',
-		'nofollow' => false,
-		'new_tab' => false,
 		'max_links_per_post' => 10,
 	];
 	$args = [ ...$defaults, ...$overrides ];
@@ -33,8 +31,6 @@ function rules( array $overrides = [] ): Ruleset {
 		deny_xpath: $args['deny_xpath'],
 		allow_only_xpath: $args['allow_only_xpath'],
 		link_class: $args['link_class'],
-		nofollow: $args['nofollow'],
-		new_tab: $args['new_tab'],
 		max_links_per_post: $args['max_links_per_post'],
 	);
 }
@@ -64,18 +60,10 @@ it( 'omits the deny-tag clause entirely when deny_tags is empty', function (): v
 	expect( rules( [ 'deny_tags' => [], 'skip_class' => 'noindex' ] )->eligible_text_nodes_query() )->toBe( $expected );
 } );
 
-it( 'builds default link attributes with only the class', function (): void {
+it( 'builds the global link attributes with only the link class', function (): void {
 	expect( rules()->link_attributes() )->toBe( [ 'class' => 'kntnt-autolink' ] );
 } );
 
-it( 'adds rel=nofollow when nofollow is on', function (): void {
-	expect( rules( [ 'nofollow' => true ] )->link_attributes() )->toBe( [ 'class' => 'kntnt-autolink', 'rel' => 'nofollow' ] );
-} );
-
-it( 'adds rel=noopener and target when new_tab is on', function (): void {
-	expect( rules( [ 'new_tab' => true ] )->link_attributes() )->toBe( [ 'class' => 'kntnt-autolink', 'rel' => 'noopener', 'target' => '_blank' ] );
-} );
-
-it( 'combines nofollow and noopener when both are on', function (): void {
-	expect( rules( [ 'nofollow' => true, 'new_tab' => true ] )->link_attributes() )->toBe( [ 'class' => 'kntnt-autolink', 'rel' => 'nofollow noopener', 'target' => '_blank' ] );
+it( 'reflects a custom link class in the link attributes', function (): void {
+	expect( rules( [ 'link_class' => 'my-link' ] )->link_attributes() )->toBe( [ 'class' => 'my-link' ] );
 } );

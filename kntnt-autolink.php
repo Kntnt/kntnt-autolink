@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Kntnt Autolink
  * Plugin URI:        https://github.com/Kntnt/kntnt-autolink
- * Description:       Rule-based keyword→URL autolinking with include-only targeting, deep-module architecture, and a small filter API.
- * Version:           1.0.0
+ * Description:       Rule-based link-group→URL autolinking with include-only targeting, deep-module architecture, and a small filter API.
+ * Version:           1.1.0
  * Requires at least: 6.5
  * Requires PHP:      8.4
  * Author:            Kntnt
@@ -37,5 +37,5 @@ register_activation_hook( __FILE__, static function (): void {
 
 // Boot the plugin: the singleton wires every component and registers its hooks.
 add_action( 'plugins_loaded', static function (): void {
-	Plugin::get_instance();
+	Plugin::get_instance( __FILE__ );
 } );

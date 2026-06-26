@@ -14,6 +14,9 @@ namespace Kntnt\Autolink;
 
 final class Plugin {
 
+	/** @since 1.1.0 */
+	public const VERSION = '1.1.0';
+
 	/** @since 1.0.0 */
 	private static ?Plugin $instance = null;
 
@@ -22,29 +25,56 @@ final class Plugin {
 	 *
 	 * @since 1.0.0
 	 */
-	public static function get_instance(): Plugin {
-		return self::$instance ??= new self();
+	public static function get_instance( string $plugin_file = '' ): Plugin {
+		return self::$instance ??= new self( $plugin_file );
 	}
 
 	/**
 	 * Wires components in dependency order and registers their hooks.
 	 *
 	 * @since 1.0.0
+	 *
+	 * @param string $plugin_file The main plugin file, for admin asset URLs.
 	 */
-	private function __construct() {
+	private function __construct( string $plugin_file ) {
 
-		// Instantiate the repositories and the pure engine, then wire the
-		// content filter that bridges them to the_content.
+		// An in-place update never fires the activation hook, so a version-keyed
+		// upgrade routine re-grants the renamed capability and migrates the renamed
+		// option on the first request after the update.
+		( new Migrator( new Capabilities(), self::VERSION ) )->register_hooks();
+
+		// Instantiate the repositories and the pure engine, then wire the content
+		// filter that bridges them to the_content.
 		$settings = new Settings_Repository();
-		$keywords = new Keyword_Repository();
+		$groups = new Link_Group_Repository();
 		$linker = new Linker();
 
-		$content_filter = new Content_Filter( $settings, $keywords, $linker );
+		$content_filter = new Content_Filter( $settings, $groups, $linker );
 		$content_filter->register_hooks();
 
-		// The admin UI is only needed in the admin context.
+		// The REST API re-renders the list-table body server-side after each change.
+		// Building the table needs WP_List_Table, whose constructor calls
+		// convert_to_screen()/WP_Screen — the whole admin screen and template API is
+		// absent on a REST (non-admin) request, so the closure loads it on demand in
+		// core's own order; require_once is a no-op when wp-admin is already loaded.
+		$render_rows = static function () use ( $groups ): string {
+			if ( ! class_exists( \WP_List_Table::class ) ) {
+				require_once ABSPATH . 'wp-admin/includes/class-wp-screen.php';
+				require_once ABSPATH . 'wp-admin/includes/screen.php';
+				require_once ABSPATH . 'wp-admin/includes/template.php';
+				require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
+			}
+			$table = new Admin\Link_Groups_List_Table( $groups );
+			$table->prepare_items();
+			return $table->rows_html();
+		};
+		( new Rest_Controller( $groups, $render_rows ) )->register_hooks();
+
+		// The admin screens are only needed in the admin context: the link-group
+		// manager under Tools, the structural rules under Settings.
 		if ( is_admin() ) {
-			( new Admin\Tools_Page( $settings, $keywords ) )->register_hooks();
+			( new Admin\Tools_Page( $groups, $plugin_file, self::VERSION ) )->register_hooks();
+			( new Admin\Settings_Page( $settings ) )->register_hooks();
 		}
 
 	}

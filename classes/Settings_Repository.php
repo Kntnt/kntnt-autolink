@@ -1,7 +1,9 @@
 <?php
 /**
  * Reads and writes the plugin settings option, hydrating it into a Ruleset and
- * exposing the targeting fields. The only code that touches kntnt_autolink_settings.
+ * exposing the targeting fields. The only code that touches
+ * kntnt_autolink_settings. The link policy (nofollow / new tab) is no longer a
+ * global setting; it lives on each Link_Group.
  *
  * @since 1.0.0
  */
@@ -26,8 +28,6 @@ final class Settings_Repository {
 		'deny_xpath' => '',
 		'allow_only_xpath' => '',
 		'link_class' => 'kntnt-autolink',
-		'nofollow' => false,
-		'new_tab' => false,
 		'max_links_per_post' => 10,
 		'post_types' => [ 'post', 'page' ],
 		'terms' => [],
@@ -67,8 +67,6 @@ final class Settings_Repository {
 			deny_xpath: $deny_xpath === '' ? null : $deny_xpath,
 			allow_only_xpath: $allow_only_xpath === '' ? null : $allow_only_xpath,
 			link_class: $this->to_string( $s['link_class'] ),
-			nofollow: (bool) $s['nofollow'],
-			new_tab: (bool) $s['new_tab'],
 			max_links_per_post: $this->to_int( $s['max_links_per_post'] ),
 		);
 	}
@@ -129,8 +127,6 @@ final class Settings_Repository {
 			'deny_xpath' => isset( $input['deny_xpath'] ) ? trim( $this->to_string( $input['deny_xpath'] ) ) : '',
 			'allow_only_xpath' => isset( $input['allow_only_xpath'] ) ? trim( $this->to_string( $input['allow_only_xpath'] ) ) : '',
 			'link_class' => isset( $input['link_class'] ) ? sanitize_html_class( $this->to_string( $input['link_class'] ) ) : self::DEFAULTS['link_class'],
-			'nofollow' => ! empty( $input['nofollow'] ),
-			'new_tab' => ! empty( $input['new_tab'] ),
 			'max_links_per_post' => isset( $input['max_links_per_post'] ) ? abs( $this->to_int( $input['max_links_per_post'] ) ) : self::DEFAULTS['max_links_per_post'],
 			'post_types' => $this->sanitise_keys( $input['post_types'] ?? self::DEFAULTS['post_types'] ),
 			'terms' => $this->sanitise_terms( $input['terms'] ?? [] ),

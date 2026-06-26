@@ -3,14 +3,21 @@
 # End-to-end integration test on WordPress Playground.
 #
 # Boots a real WordPress (PHP 8.4 + SQLite, no server install) with this plugin
-# mounted and activated, seeds a keyword and a front page via the blueprint,
+# mounted and activated, seeds a link group and a front page via the blueprint,
 # fetches the rendered front page over HTTP, and asserts:
 #
-#   Scenario 1 (the_content end-to-end): the paragraph occurrence of the keyword
-#     is linked and the heading occurrence is not.
-#   Scenario 2 (capability gating): in a real role context, the editor role can
-#     manage keywords but not the structural rules, while the administrator can
-#     do both.
+#   Scenario 1 (the_content end-to-end): the paragraph occurrence of the link
+#     group's phrase is linked and the heading occurrence is not.
+#   Scenario 2 (per-group policy end-to-end): a second group's own nofollow and
+#     new-tab behaviour surfaces on its link as rel="nofollow noopener" and
+#     target="_blank", proving the policy is per-group, not global.
+#   Scenario 3 (capability gating): in a real role context, the editor role can
+#     manage link groups but not the structural rules, while the administrator
+#     can do both.
+#   Scenario 4 (REST re-render in a non-admin context): the "render rows" route,
+#     dispatched while wp-admin is not loaded, returns the real table body without
+#     fataling on the admin-only convert_to_screen() — the regression the table's
+#     server-side re-render depends on.
 #
 # Prerequisites: Node >= 20 with npx (uses @wp-playground/cli).
 # Usage: bash tests/Integration/run.sh
@@ -104,12 +111,19 @@ if [ ! -s "$OUT" ]; then
 	exit 1
 fi
 
-echo "---- Scenario 1: the_content end-to-end ----"
-assert_contains "$OUT" '<a class="kntnt-autolink" href="https://example.com/target">autolink</a>' "paragraph keyword is linked"
-assert_count "$OUT" 'class="kntnt-autolink"' '1' "heading keyword is NOT linked (exactly one autolink on the page)"
+echo "---- Scenario 1: the_content end-to-end (deny-tags proven independent of the cap) ----"
+assert_contains "$OUT" '<a class="kntnt-autolink" href="https://example.com/target">autolink</a>' "paragraph phrase is linked"
+assert_contains "$OUT" '<h2>About autolink</h2>' "heading phrase stays unlinked verbatim, though the group cap (5) leaves linking budget"
+assert_count "$OUT" 'href="https://example.com/target"' '1' "only the paragraph is linked: the heading is skipped by deny-tags, not by an exhausted cap"
 
-echo "---- Scenario 2: capability gating in a real role context ----"
-assert_contains "$OUT" 'CAPCHECK ek=1 eo=0 ak=1 ao=1 ENDCAP' "editor manages keywords only; administrator manages keywords and rules"
+echo "---- Scenario 2: per-group nofollow / new-tab end-to-end ----"
+assert_contains "$OUT" '<a class="kntnt-autolink" rel="nofollow noopener" target="_blank" href="https://example.com/nofollow">nofollowme</a>' "the nofollow group emits rel=nofollow and opens a new tab, per group"
+
+echo "---- Scenario 3: capability gating in a real role context ----"
+assert_contains "$OUT" 'CAPCHECK ek=1 eo=0 ak=1 ao=1 ENDCAP' "editor manages link groups only; administrator manages link groups and rules"
+
+echo "---- Scenario 4: REST table re-render in a non-admin context ----"
+assert_contains "$OUT" 'RESTCHECK status=200 rows_ok=1 ENDREST' "render-rows route returns the real table body without a convert_to_screen fatal"
 
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"

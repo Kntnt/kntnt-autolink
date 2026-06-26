@@ -15,10 +15,14 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
-// Remove both stored options (settings + keywords).
+// Remove every stored option: settings, link groups, the version stamp, and the
+// pre-1.1.0 keyword option in case the site was uninstalled before it migrated.
 delete_option( 'kntnt_autolink_settings' );
+delete_option( 'kntnt_autolink_link_groups' );
+delete_option( 'kntnt_autolink_version' );
 delete_option( 'kntnt_autolink_keywords' );
 
-// Remove the custom capability from every role.
+// Remove the custom capability from every role. The pre-1.1.0 capability is
+// already retired by the upgrade routine on any site that ran 1.1.0.
 require_once __DIR__ . '/autoloader.php';
 ( new \Kntnt\Autolink\Capabilities() )->revoke();

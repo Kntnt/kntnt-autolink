@@ -4,7 +4,8 @@
  * raw-XPath escape hatches (deny and allow-only) into a single XPath selecting
  * the eligible text nodes, and builds the static <a> attributes.
  *
- * Pure value object — no WordPress calls.
+ * Pure value object — no WordPress calls. The link policy (nofollow / new tab)
+ * is no longer global; it lives on each Link_Group.
  *
  * @since 1.0.0
  */
@@ -23,8 +24,6 @@ final readonly class Ruleset {
 	 * @param string|null  $deny_xpath         Optional raw XPath; ancestors in its node-set are excluded.
 	 * @param string|null  $allow_only_xpath   Optional raw XPath; when set, only its subtree is eligible.
 	 * @param string       $link_class         Class applied to generated links.
-	 * @param bool         $nofollow           Add rel="nofollow".
-	 * @param bool         $new_tab            Open in a new tab (target=_blank, rel adds noopener).
 	 * @param int          $max_links_per_post Global cap on total links per post.
 	 */
 	public function __construct(
@@ -33,8 +32,6 @@ final readonly class Ruleset {
 		public ?string $deny_xpath,
 		public ?string $allow_only_xpath,
 		public string $link_class,
-		public bool $nofollow,
-		public bool $new_tab,
 		public int $max_links_per_post,
 	) {}
 
@@ -76,34 +73,15 @@ final readonly class Ruleset {
 	}
 
 	/**
-	 * The static attributes for a generated <a>, before href and the per-match
-	 * attribute filter are applied (Linker / Content_Filter).
+	 * The global static attributes for a generated <a>: only the link class. The
+	 * per-group policy (rel/target) and the href are layered on by the Linker.
 	 *
 	 * @since 1.0.0
 	 *
 	 * @return array<string, string>
 	 */
 	public function link_attributes(): array {
-
-		// Class is always present; rel/target depend on the link policy.
-		$attributes = [ 'class' => $this->link_class ];
-
-		$rel = [];
-		if ( $this->nofollow ) {
-			$rel[] = 'nofollow';
-		}
-		if ( $this->new_tab ) {
-			$rel[] = 'noopener';
-		}
-		if ( $rel !== [] ) {
-			$attributes['rel'] = implode( ' ', $rel );
-		}
-		if ( $this->new_tab ) {
-			$attributes['target'] = '_blank';
-		}
-
-		return $attributes;
-
+		return [ 'class' => $this->link_class ];
 	}
 
 }

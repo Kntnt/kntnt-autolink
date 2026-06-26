@@ -5,28 +5,29 @@
 ![Requires WordPress](https://img.shields.io/badge/WordPress-6.5%2B-blue)
 ![Latest release](https://img.shields.io/github/v/release/Kntnt/kntnt-autolink)
 
-Kntnt Autolink turns chosen keywords into links to URLs you specify, directly in your published content, so your internal linking stays consistent without manual effort.
+Kntnt Autolink turns chosen phrases into links to URLs you specify, directly in your published content, so your internal linking stays consistent without manual effort.
 
 ## Description
 
-Kntnt Autolink links the first eligible occurrence of each keyword you define to a destination URL of your choice. It is a small, fully owned replacement for the Autolink module of Slim SEO Pro, built around a WordPress-free matching engine and a small, documented filter API.
+Kntnt Autolink links the first eligible occurrences of the phrases you define to a destination URL of your choice. Phrases are organised into link groups: a group's phrases are interchangeable, share one URL and one link budget, and carry their own link behaviour. It is a small, fully owned replacement for the Autolink module of Slim SEO Pro, built around a WordPress-free matching engine and a small, documented filter API.
 
-The links it creates are real and followable by default, because the point of internal linking is to let search engines follow it. Matching is exact and case-insensitive, respects Unicode word boundaries so a keyword never links inside a longer word, and can be confined to any region of the page you can name with an XPath expression – an include-only targeting feature no comparable free plugin offers.
+The links it creates are real and followable by default, because the point of internal linking is to let search engines follow it. Matching is exact and case-insensitive, respects Unicode word boundaries so a phrase never links inside a longer word, and can be confined to any region of the page you can name with an XPath expression – an include-only targeting feature no comparable free plugin offers.
 
 ### Key features
 
-- Exact, literal keyword matching with Unicode word boundaries, so `page` never links inside `homepage`.
+- Exact, literal phrase matching with Unicode word boundaries, so `page` never links inside `homepage`.
 - Include-only targeting: restrict linking to within any region you can name with an XPath expression.
 - A deny-tag list and a `.no-autolink` class that keep links out of headings, code and any block you choose.
-- First-occurrence linking with a per-keyword cap and a global per-post cap; longer phrases win over their parts.
+- First-occurrence linking with a per-group cap and a global per-post cap; the longest matching phrase wins a tie.
+- Per-group link behaviour: each link group decides on its own whether its links are nofollowed and whether they open in a new tab.
 - Followable links by default, each carrying a `kntnt-autolink` class so the theme can restyle them.
 - A small filter API – five behaviour filters plus a priority filter – so you never hit the no-hooks wall.
-- A split of authority: editors manage the keyword list, while administrators alone control the structural rules.
+- A split of authority: editors manage link groups under Tools, while administrators alone control the structural rules under Settings.
 - A matching engine that makes no WordPress calls and is unit-tested in isolation.
 
 ### The problem
 
-Slim SEO Pro's Autolink module hard-codes which tags it skips and exposes no filter or action, so there is no way to stop it linking inside a heading, to exclude a single paragraph or to restrict linking to a chosen region. The free alternatives are no better: most are option-heavy or freemium, and the most promising of them links a keyword inside longer words – linking `page` inside `homepage`, for instance – because its matching ignores word boundaries.
+Slim SEO Pro's Autolink module hard-codes which tags it skips and exposes no filter or action, so there is no way to stop it linking inside a heading, to exclude a single paragraph or to restrict linking to a chosen region. The free alternatives are no better: most are option-heavy or freemium, and the most promising of them links a phrase inside longer words – linking `page` inside `homepage`, for instance – because its matching ignores word boundaries.
 
 ### How this plugin helps
 
@@ -36,10 +37,10 @@ Kntnt Autolink parses the rendered content into a DOM, walks the ancestor chain 
 
 The plugin is deliberately small, and some things are out of scope by design:
 
-- No inflection or plural engine. Irregular forms are entered by hand as variants of a keyword.
+- No inflection or plural engine. Irregular forms are entered by hand as extra phrases in a link group.
 - No CSS-to-XPath converter. The deny-tag list and skip class cover the common cases; raw XPath is the escape hatch for the rest.
-- No minimum distance between links, no per-keyword rule level and no statistics or live preview.
-- Linking is computed on every render rather than stored. A `stripos` pre-check keeps posts with no matching keyword close to free, and nothing is ever written on the read path.
+- No minimum distance between links, no per-group rule level and no statistics or live preview.
+- Linking is computed on every render rather than stored. A `stripos` pre-check keeps posts with no matching phrase close to free, and nothing is ever written on the read path.
 
 ## Requirements
 
@@ -48,22 +49,22 @@ WordPress 6.5 or later, and PHP 8.4 or later. On an older PHP version the plugin
 ## Installation
 
 1. Download the latest release from [the releases page](https://github.com/Kntnt/kntnt-autolink/releases/latest/download/kntnt-autolink.zip), or clone this repository into `wp-content/plugins/kntnt-autolink`.
-2. Activate **Kntnt Autolink** from **Plugins** in the WordPress admin. Activation grants the keyword-management capability to editors and administrators.
+2. Activate **Kntnt Autolink** from **Plugins** in the WordPress admin. Activation grants the link-group-management capability to editors and administrators.
 3. If you run Slim SEO Pro, disable its Autolink module so that two linkers do not both process `the_content`. Keep the rest of Slim SEO Pro; only the Autolink module is replaced.
 
 ## Usage
 
-Manage everything under **Tools → Autolink**.
+Manage link groups under **Tools → Autolink**; administrators configure the structural rules under **Settings → Autolink**.
 
-### Managing keywords
+### Managing link groups
 
-Editors and administrators manage the keyword list. Each keyword has a base form (the canonical surface form), optional variants (additional equal-weight surface forms, one per line or comma-separated), a destination URL and an optional per-keyword limit on links per post.
+Editors and administrators manage link groups in a native list, each shown as its phrases, URL and group cap. A **link group** is a set of equal, interchangeable **phrases** that all link to one URL, share one **group cap** (how many links the group may make in a post), and carry their own **nofollow** and **new-tab** behaviour. There is no canonical or "main" phrase — every phrase is a peer. Add New opens a modal; clicking a group's phrases (or its Edit row action) opens the same modal to edit it, and Delete removes it. Saving and deleting happen over REST and refresh the list in place.
 
-Matching is exact and literal: there is no regular expression for you to write and no inflection engine. It is case-insensitive and respects word boundaries, and longer phrases win over their parts, so `machine learning` links as one phrase rather than linking `learning` inside it. Variants are entered by hand, which is how you cover irregular plurals and alternative spellings.
+Matching is exact and literal: there is no regular expression for you to write and no inflection engine. It is case-insensitive and respects word boundaries, and the longest matching phrase wins a tie, so `machine learning` links as one phrase rather than linking `learning` inside it. Extra phrases are entered by hand, one per line, which is how you cover irregular plurals and alternative spellings within a single group.
 
 ### Structural rules (administrators only)
 
-Administrators additionally see a **Structural rules** section that editors never see: the deny-tag list, the skip class, the raw deny and include-only XPath expressions, the link defaults (`nofollow`, open in a new tab, link class), the global per-post cap and the post-type and term targeting. These are reserved for administrators because a mistaken XPath could break matching across the whole site.
+Administrators alone reach a **Settings → Autolink** page with the structural rules editors never see: the deny-tag list, the skip class, the raw deny and include-only XPath expressions, the link class, the global per-post cap and the post-type and term targeting. These are reserved for administrators because a mistaken XPath could break matching across the whole site. Whether links are nofollowed or open in a new tab is no longer global — it is set per link group.
 
 ### Styling
 
@@ -83,15 +84,15 @@ Add the class `no-autolink` to any element to stop linking inside it and all of 
 
 #### Why are the links followable rather than `nofollow` by default?
 
-Internal links exist to be crawled, which is the whole point of internal linking for search. You can turn `nofollow` on in the structural rules, or per request through the filters.
+Internal links exist to be crawled, which is the whole point of internal linking for search. You can turn `nofollow` on per link group, or per request through the filters.
 
 #### Does the plugin rewrite my stored content?
 
 No. Linking happens while the page renders and never when content is saved. The database is never written on the read path.
 
-#### A keyword linked inside a longer word once. Can that happen here?
+#### A phrase linked inside a longer word once. Can that happen here?
 
-No. Matching respects Unicode word boundaries, so a keyword never links inside a longer word – `page` is never linked inside `homepage`.
+No. Matching respects Unicode word boundaries, so a phrase never links inside a longer word – `page` is never linked inside `homepage`.
 
 ## Questions, bugs, and feature requests
 
@@ -103,22 +104,21 @@ Found a bug or want to request a feature? Please [open an issue](https://github.
 
 Every decision the engine makes is exposed through a filter, all prefixed `kntnt_autolink_`. There are five behaviour filters plus one that sets the `the_content` priority. Each has its own subsection below.
 
-### `kntnt_autolink_keywords`
+### `kntnt_autolink_link_groups`
 
-`apply_filters( 'kntnt_autolink_keywords', Kntnt\Autolink\Keyword[] $keywords ): Kntnt\Autolink\Keyword[]`
+`apply_filters( 'kntnt_autolink_link_groups', Kntnt\Autolink\Link_Group[] $groups ): Kntnt\Autolink\Link_Group[]`
 
-Filters the keyword set before matching. Inject, override or remove entries – useful for config-as-code.
+Filters the link-group set before matching. Inject, override or remove groups – useful for config-as-code.
 
 ```php
-add_filter( 'kntnt_autolink_keywords', function ( array $keywords ): array {
-	$keywords[] = new Kntnt\Autolink\Keyword(
+add_filter( 'kntnt_autolink_link_groups', function ( array $groups ): array {
+	$groups[] = new Kntnt\Autolink\Link_Group(
 		id: 'wp',
-		base: 'WordPress',
-		variants: [],
+		phrases: [ 'WordPress' ],
 		url: 'https://wordpress.org/',
-		max: 1,
+		cap: 1,
 	);
-	return $keywords;
+	return $groups;
 } );
 ```
 
@@ -164,7 +164,7 @@ add_filter( 'kntnt_autolink_should_run', function ( bool $run, WP_Post $post ): 
 
 `apply_filters( 'kntnt_autolink_link_attributes', array $attributes, array $context ): array`
 
-Filters the generated `<a>` attributes per match. `$context` carries `url`, `keyword_id`, `base` and `matched_text`. This is also the seam a future hovercard hooks into.
+Filters the generated `<a>` attributes per match. `$context` carries `url`, `group_id` and `matched_text`. This is also the seam a future hovercard hooks into.
 
 ```php
 // Tag every generated link with its destination, for a hovercard or analytics.
@@ -211,7 +211,7 @@ bash tests/Integration/run.sh
 
 ### Technical documentation
 
-The matching engine (`Kntnt\Autolink\Linker`) makes no WordPress calls: it takes HTML, a keyword set and a `Ruleset`, and returns the linked HTML. That purity is what keeps every matching decision in one place and makes the engine unit-testable in isolation. The WordPress glue – the option repositories, the `the_content` bridge, the capabilities and the admin page – surrounds it. The source lives under `classes/`, the design rationale in `kntnt-autolink-design.md`, the build history in `plans/`, and the coding standard in `AGENTS.md` and `agents.d/`.
+The matching engine (`Kntnt\Autolink\Linker`) makes no WordPress calls: it takes HTML, a set of link groups and a `Ruleset`, and returns the linked HTML. That purity is what keeps every matching decision in one place and makes the engine unit-testable in isolation. The WordPress glue – the option repositories, the `the_content` bridge, the capabilities and the admin page – surrounds it. The source lives under `classes/`, the design rationale in `kntnt-autolink-design.md`, the build history in `plans/`, and the coding standard in `AGENTS.md` and `agents.d/`.
 
 ## How you can contribute
 

@@ -24,18 +24,23 @@ it( 'returns the full defaults when the option is absent', function (): void {
 	expect( $settings['deny_xpath'] )->toBe( '' );
 	expect( $settings['allow_only_xpath'] )->toBe( '' );
 	expect( $settings['link_class'] )->toBe( 'kntnt-autolink' );
-	expect( $settings['nofollow'] )->toBeFalse();
-	expect( $settings['new_tab'] )->toBeFalse();
 	expect( $settings['max_links_per_post'] )->toBe( 10 );
 	expect( $settings['post_types'] )->toBe( [ 'post', 'page' ] );
 	expect( $settings['terms'] )->toBe( [] );
 } );
 
-it( 'merges a partial stored array over the defaults', function (): void {
-	Functions\when( 'get_option' )->justReturn( [ 'nofollow' => true ] );
+it( 'no longer carries the global nofollow and new_tab settings', function (): void {
+	Functions\when( 'get_option' )->justReturn( false );
 	$settings = ( new Settings_Repository() )->get_settings();
-	expect( $settings['nofollow'] )->toBeTrue();
-	expect( $settings['skip_class'] )->toBe( 'no-autolink' );
+	expect( $settings )->not->toHaveKey( 'nofollow' );
+	expect( $settings )->not->toHaveKey( 'new_tab' );
+} );
+
+it( 'merges a partial stored array over the defaults', function (): void {
+	Functions\when( 'get_option' )->justReturn( [ 'skip_class' => 'silent' ] );
+	$settings = ( new Settings_Repository() )->get_settings();
+	expect( $settings['skip_class'] )->toBe( 'silent' );
+	expect( $settings['link_class'] )->toBe( 'kntnt-autolink' );
 	expect( $settings['max_links_per_post'] )->toBe( 10 );
 } );
 
@@ -73,8 +78,6 @@ it( 'sanitises and persists settings without autoloading', function (): void {
 		'link_class' => 'kntnt-autolink',
 		'deny_xpath' => '  //figure  ',
 		'allow_only_xpath' => '   ',
-		'nofollow' => '1',
-		'new_tab' => 0,
 		'max_links_per_post' => '12',
 		'post_types' => [ 'Post', 'page' ],
 	] );
@@ -83,10 +86,10 @@ it( 'sanitises and persists settings without autoloading', function (): void {
 	expect( $captured['skip_class'] )->toBe( 'noautolink' );
 	expect( $captured['deny_xpath'] )->toBe( '//figure' );
 	expect( $captured['allow_only_xpath'] )->toBe( '' );
-	expect( $captured['nofollow'] )->toBeTrue();
-	expect( $captured['new_tab'] )->toBeFalse();
 	expect( $captured['max_links_per_post'] )->toBe( 12 );
 	expect( $captured['post_types'] )->toBe( [ 'post', 'page' ] );
+	expect( $captured )->not->toHaveKey( 'nofollow' );
+	expect( $captured )->not->toHaveKey( 'new_tab' );
 } );
 
 it( 'casts max_links_per_post junk input to zero', function (): void {

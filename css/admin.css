@@ -1,0 +1,47 @@
+/* Kntnt Autolink admin: the shared link-group add/edit modal. The list itself
+   relies on native WP admin CSS and --wp-admin-theme-color. */
+
+dialog.kntnt-autolink-modal {
+	width: min(40rem, 92vw);
+	padding: 0;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+}
+
+dialog.kntnt-autolink-modal::backdrop {
+	background: rgba(0, 0, 0, 0.45);
+}
+
+.kntnt-autolink-modal__body {
+	padding: 1.5rem;
+}
+
+.kntnt-autolink-modal__body h2 {
+	margin-top: 0;
+}
+
+.kntnt-autolink-modal__field {
+	margin: 0 0 1rem;
+}
+
+.kntnt-autolink-modal__field label {
+	display: block;
+	margin-bottom: 0.25rem;
+	font-weight: 600;
+}
+
+.kntnt-autolink-modal__field textarea,
+.kntnt-autolink-modal__field input[type="url"],
+.kntnt-autolink-modal__field input[type="number"] {
+	width: 100%;
+}
+
+.kntnt-autolink-modal__footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	padding: 1rem 1.5rem;
+	border-top: 1px solid #dcdcde;
+	background: #f6f7f7;
+}
