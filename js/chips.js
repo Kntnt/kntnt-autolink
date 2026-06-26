@@ -66,6 +66,118 @@
 	};
 
 	/**
+	 * Turn a free-mode entry into an autocomplete backed by an async source. The
+	 * source receives the typed query and the chip container (so it can read e.g.
+	 * `data-taxonomy`) and resolves to a list of `{ value, label }`. Picking a
+	 * suggestion records its label so the chip reads by name, and commits its value
+	 * — the real id — as the submitted token. Raw typed text is never committed, so
+	 * only resolved suggestions become chips.
+	 */
+	const attachAutocomplete = ( container, control, entry, values, options, addToken, source ) => {
+		const box = document.createElement( 'ul' );
+		box.className = 'kntnt-autolink-chips__suggestions';
+		box.hidden = true;
+		control.appendChild( box );
+
+		let items = [];
+		let active = -1;
+		let timer = null;
+
+		const close = () => {
+			box.hidden = true;
+			box.textContent = '';
+			items = [];
+			active = -1;
+		};
+
+		const pick = ( item ) => {
+			if ( ! item || item.value === undefined || item.value === null ) {
+				return;
+			}
+			const value = String( item.value );
+			options[ value ] = item.label === undefined || item.label === null ? value : String( item.label );
+			addToken( value );
+			entry.value = '';
+			close();
+		};
+
+		const highlight = () => {
+			[ ...box.children ].forEach( ( li, index ) => {
+				li.classList.toggle( 'is-active', index === active );
+			} );
+		};
+
+		const show = ( results ) => {
+			items = ( Array.isArray( results ) ? results : [] ).filter(
+				( item ) => item && item.value !== undefined && item.value !== null && ! values.includes( String( item.value ) ),
+			);
+			active = -1;
+			box.textContent = '';
+			if ( items.length === 0 ) {
+				close();
+				return;
+			}
+			items.forEach( ( item ) => {
+				const li = document.createElement( 'li' );
+				li.className = 'kntnt-autolink-chips__suggestion';
+				li.textContent = item.label === undefined || item.label === null ? String( item.value ) : String( item.label );
+				// mousedown (not click) so the pick lands before the entry's blur closes the box.
+				li.addEventListener( 'mousedown', ( event ) => {
+					event.preventDefault();
+					pick( item );
+				} );
+				box.appendChild( li );
+			} );
+			box.hidden = false;
+		};
+
+		const query = async () => {
+			const q = entry.value.trim();
+			if ( q === '' ) {
+				close();
+				return;
+			}
+			try {
+				show( await source( q, container ) );
+			} catch ( e ) {
+				close();
+			}
+		};
+
+		entry.setAttribute( 'autocomplete', 'off' );
+		entry.addEventListener( 'input', () => {
+			window.clearTimeout( timer );
+			timer = window.setTimeout( query, 200 );
+		} );
+		entry.addEventListener( 'keydown', ( event ) => {
+			if ( box.hidden ) {
+				// Never commit raw typed text in suggest mode — only resolved suggestions
+				// (real ids) may become chips; swallow Enter so the form is not submitted.
+				if ( event.key === 'Enter' ) {
+					event.preventDefault();
+				}
+				return;
+			}
+			if ( event.key === 'ArrowDown' ) {
+				event.preventDefault();
+				active = Math.min( active + 1, items.length - 1 );
+				highlight();
+			} else if ( event.key === 'ArrowUp' ) {
+				event.preventDefault();
+				active = Math.max( active - 1, 0 );
+				highlight();
+			} else if ( event.key === 'Enter' ) {
+				event.preventDefault();
+				pick( items[ active >= 0 ? active : 0 ] );
+			} else if ( event.key === 'Escape' ) {
+				close();
+			}
+		} );
+		// Close after a tick so a suggestion's mousedown can land first.
+		entry.addEventListener( 'blur', () => window.setTimeout( close, 150 ) );
+	};
+
+	/**
 	 * Enhance one chip container.
 	 */
 	const enhance = ( container ) => {
@@ -78,7 +190,10 @@
 		const mode = container.dataset.mode === 'closed' ? 'closed' : 'free';
 		const name = container.dataset.name || '';
 		const placeholder = container.dataset.placeholder || '';
-		const options = mode === 'closed' ? readOptions( container ) : {};
+		// Always read the inline option set: in closed mode it is the fixed selector,
+		// in free mode it is the display labels for the initial tokens (e.g. term names
+		// for term ids). Absent, it is simply empty.
+		const options = readOptions( container );
 
 		// The textarea becomes the JS path's silent state: hidden and nameless so
 		// only the hidden chip inputs submit.
@@ -196,12 +311,24 @@
 			}
 		}
 
+		// The async suggestion source named by data-suggest, when one is registered.
+		// Present in free mode it upgrades the entry to an autocomplete.
+		const suggestName = container.dataset.suggest || '';
+		const source = mode === 'free' && suggestName && sources.has( suggestName ) ? sources.get( suggestName ) : null;
+
+		const control = document.createElement( 'div' );
+		control.className = 'kntnt-autolink-chips__control';
+		control.appendChild( list );
+		control.appendChild( entry );
+
 		if ( mode === 'closed' ) {
 			entry.addEventListener( 'change', () => {
 				if ( entry.value !== '' ) {
 					addToken( entry.value );
 				}
 			} );
+		} else if ( source ) {
+			attachAutocomplete( container, control, entry, values, options, addToken, source );
 		} else {
 			entry.addEventListener( 'keydown', ( event ) => {
 				if ( event.key === 'Enter' || event.key === ',' ) {
@@ -216,17 +343,16 @@
 			} );
 		}
 
-		const control = document.createElement( 'div' );
-		control.className = 'kntnt-autolink-chips__control';
-		control.appendChild( list );
-		control.appendChild( entry );
-
 		container.appendChild( control );
 		container.appendChild( hidden );
 		container.classList.add( 'is-enhanced' );
 
 		render();
 	};
+
+	// Expose the in-place enhancer so the term-targeting controller can upgrade the
+	// chip widget of a row it adds after the initial DOMContentLoaded sweep.
+	window.kntntAutolinkChips.enhance = enhance;
 
 	document.addEventListener( 'DOMContentLoaded', () => {
 		document

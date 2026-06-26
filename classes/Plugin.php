@@ -72,6 +72,11 @@ final class Plugin {
 		};
 		( new Rest_Controller( $groups, $render_rows ) )->register_hooks();
 
+		// Term search for the Settings → Autolink term-targeting control. Its own
+		// route under the same namespace, gated by manage_options; available in the
+		// REST (non-admin) context, so it is wired outside the is_admin() block.
+		( new Term_Search_Controller() )->register_hooks();
+
 		// The admin screens are only needed in the admin context: the link-group
 		// manager under Tools, the structural rules under Settings.
 		if ( is_admin() ) {

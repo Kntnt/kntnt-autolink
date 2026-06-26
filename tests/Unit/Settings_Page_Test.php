@@ -49,6 +49,25 @@ function stub_public_post_types( array $types ): void {
 	} );
 }
 
+/**
+ * A registered-public-taxonomies stub: the 'objects' form returns label-bearing
+ * doubles keyed by slug, matching get_taxonomies( [...], 'objects' ).
+ *
+ * @param array<string, string> $taxonomies Slug => human label.
+ */
+function stub_public_taxonomies( array $taxonomies ): void {
+	Functions\when( 'get_taxonomies' )->alias( static function ( $args = [], $output = 'names' ) use ( $taxonomies ): array {
+		if ( $output === 'objects' ) {
+			$objects = [];
+			foreach ( $taxonomies as $slug => $label ) {
+				$objects[ $slug ] = (object) [ 'label' => $label, 'name' => $slug ];
+			}
+			return $objects;
+		}
+		return array_keys( $taxonomies );
+	} );
+}
+
 it( 'registers the structural-rules page under the Settings menu, administrators only', function (): void {
 	Functions\when( '__' )->returnArg( 1 );
 
@@ -97,6 +116,7 @@ it( 'registers the option with a sanitize callback and three native sections', f
 
 	// Every documented field must be wired so the page renders and saves it.
 	expect( $fields )->toContain( 'post_types' );
+	expect( $fields )->toContain( 'terms' );
 	expect( $fields )->toContain( 'link_class' );
 	expect( $fields )->toContain( 'max_links_per_post' );
 	expect( $fields )->toContain( 'deny_tags' );
@@ -191,18 +211,88 @@ it( 'renders deny tags as a free-text chip field prefilled with the defaults', f
 	expect( $html )->toContain( 'class="description"' );
 } );
 
-it( 'enqueues the chip assets only on its own settings screen', function (): void {
+it( 'renders the term-targeting control: a taxonomy selector, autocomplete term chips and an Add taxonomy button', function (): void {
+	stub_settings_page_i18n();
+	Functions\when( 'get_option' )->justReturn( [ 'terms' => [ 'category' => [ 5 ] ] ] );
+	Functions\when( 'wp_json_encode' )->alias( static fn ( $value ): string => (string) json_encode( $value ) );
+	stub_public_taxonomies( [ 'category' => 'Categories', 'post_tag' => 'Tags' ] );
+	Functions\when( 'get_term' )->alias( static fn ( $id, $taxonomy = '' ) => (object) [ 'term_id' => $id, 'name' => "Term {$id}" ] );
+
+	ob_start();
+	make_settings_page()->render_terms_field();
+	$html = (string) ob_get_clean();
+
+	// A taxonomy selector offering the registered taxonomies, with the saved one bound.
+	expect( $html )->toContain( 'kntnt-autolink-term-row__taxonomy' );
+	expect( $html )->toContain( 'Categories' );
+	expect( $html )->toContain( 'Tags' );
+
+	// The term chips are a free-mode chip widget in autocomplete (data-suggest) mode,
+	// bound to the saved taxonomy and posting under the nested terms map key.
+	expect( $html )->toContain( 'data-kntnt-autolink-chips' );
+	expect( $html )->toContain( 'data-suggest="terms"' );
+	expect( $html )->toContain( 'data-taxonomy="category"' );
+	expect( $html )->toContain( 'name="kntnt_autolink_settings[terms][category]"' );
+
+	// The saved term id is prefilled and labelled by its term name for display.
+	expect( $html )->toContain( 'Term 5' );
+
+	// An Add taxonomy button and an inert row template the JS clones for new rows.
+	expect( $html )->toContain( 'kntnt-autolink-add-taxonomy' );
+	expect( $html )->toContain( '<template' );
+
+	// The control carries the help line spelling out the include-only semantics.
+	expect( $html )->toContain( 'class="description"' );
+} );
+
+it( 'renders the term-targeting control even when no taxonomies are saved yet', function (): void {
+	stub_settings_page_i18n();
+	Functions\when( 'get_option' )->justReturn( false );
+	Functions\when( 'wp_json_encode' )->alias( static fn ( $value ): string => (string) json_encode( $value ) );
+	stub_public_taxonomies( [ 'category' => 'Categories' ] );
+
+	ob_start();
+	make_settings_page()->render_terms_field();
+	$html = (string) ob_get_clean();
+
+	// With nothing saved there are no rows, but the Add taxonomy button and template
+	// are always present so the admin can begin.
+	expect( $html )->toContain( 'kntnt-autolink-add-taxonomy' );
+	expect( $html )->toContain( '<template' );
+} );
+
+it( 'the targeting help text spells out the ANY-of / AND-with-post-types / empty-means-all behaviour', function (): void {
+	stub_settings_page_i18n();
+
+	ob_start();
+	make_settings_page()->render_targeting_intro();
+	$html = (string) ob_get_clean();
+
+	// The three rules the issue requires be stated to the administrator.
+	expect( strtolower( $html ) )->toContain( 'any' );
+	expect( strtolower( $html ) )->toContain( 'post type' );
+	expect( strtolower( $html ) )->toContain( 'every post' );
+} );
+
+it( 'enqueues the chip and term-search assets only on its own settings screen', function (): void {
 	stub_settings_page_i18n();
 	Functions\when( 'add_options_page' )->justReturn( 'settings_page_kntnt-autolink' );
 	Functions\when( 'plugins_url' )->alias( static fn ( $path, $file ): string => 'http://example.test/' . $path );
+	Functions\when( 'rest_url' )->alias( static fn ( $path = '' ): string => 'http://example.test/wp-json/' . (string) $path );
+	Functions\when( 'esc_url_raw' )->returnArg( 1 );
+	Functions\when( 'wp_create_nonce' )->justReturn( 'nonce-123' );
 
 	$styles = [];
 	$scripts = [];
+	$localized = [];
 	Functions\when( 'wp_enqueue_style' )->alias( static function ( $handle, ...$rest ) use ( &$styles ): void {
 		$styles[] = $handle;
 	} );
 	Functions\when( 'wp_enqueue_script' )->alias( static function ( $handle, ...$rest ) use ( &$scripts ): void {
 		$scripts[] = $handle;
+	} );
+	Functions\when( 'wp_localize_script' )->alias( static function ( $handle, $object, $data ) use ( &$localized ): void {
+		$localized[ $object ] = $data;
 	} );
 
 	$page = make_settings_page();
@@ -211,8 +301,17 @@ it( 'enqueues the chip assets only on its own settings screen', function (): voi
 	$page->enqueue( 'some-other-screen' );
 	expect( $styles )->toBe( [] );
 	expect( $scripts )->toBe( [] );
+	expect( $localized )->toBe( [] );
 
 	$page->enqueue( 'settings_page_kntnt-autolink' );
 	expect( $styles )->toContain( 'kntnt-autolink-chips' );
 	expect( $scripts )->toContain( 'kntnt-autolink-chips' );
+
+	// The term-targeting autocomplete ships its own script, configured with the REST
+	// term-search endpoint, a nonce, and the option key the nested chip names use.
+	expect( $scripts )->toContain( 'kntnt-autolink-terms' );
+	expect( $localized )->toHaveKey( 'kntntAutolinkTerms' );
+	expect( $localized['kntntAutolinkTerms']['nonce'] )->toBe( 'nonce-123' );
+	expect( $localized['kntntAutolinkTerms']['optionKey'] )->toBe( 'kntnt_autolink_settings' );
+	expect( $localized['kntntAutolinkTerms']['rest'] )->toContain( 'kntnt-autolink/v1/terms' );
 } );

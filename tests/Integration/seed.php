@@ -207,6 +207,99 @@ $set_denytags_ok = in_array( 'h2', $saved_rules->deny_tags, true ) ? 1 : 0;
 $set_cap_ok = $reread->sanitize_settings( [ 'max_links_per_post' => '0' ] )['max_links_per_post'] === 1 ? 1 : 0;
 $settingscheck = "SETTINGSCHECK posttypes={$set_posttypes_ok} denytags={$set_denytags_ok} cap={$set_cap_ok} ENDSETTINGS";
 
+// Exercise the term-targeting feature (issue #5) end-to-end against a real
+// WordPress: the REST term-search route (manage_options gate + taxonomy/search
+// sanitisation), the settings sanitiser round-trip of the taxonomy => term-ids
+// map, and the engine honouring it through the real has_term (any-of the chosen
+// terms AND an enabled post type). Each assertion is reduced to a flag embedded
+// in the page so the runner can grep one deterministic line. The settings are
+// restored to the no-terms defaults at the end so the front-page scenarios keep
+// their footing (the front page is a term-less page).
+$term_route_ok = 0;
+$term_badtax_ok = 0;
+$term_gate_ok = 0;
+$term_roundtrip_ok = 0;
+$term_engine_in = 0;
+$term_engine_out = 0;
+try {
+	$admins = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+	$editors = get_users( [ 'role' => 'editor', 'number' => 1, 'fields' => 'ID' ] );
+	wp_set_current_user( (int) ( $admins[0] ?? 1 ) );
+
+	// A category term to search for and target.
+	$inserted = wp_insert_term( 'Newsroom', 'category' );
+	$tid = is_array( $inserted ) ? (int) $inserted['term_id'] : 0;
+
+	// The /terms route returns the matching term for a registered taxonomy (admin).
+	$search = new WP_REST_Request( 'GET', '/kntnt-autolink/v1/terms' );
+	$search->set_param( 'taxonomy', 'category' );
+	$search->set_param( 'search', 'News' );
+	$search_response = rest_do_request( $search );
+	$search_data = $search_response->get_data();
+	$found = false;
+	if ( is_array( $search_data ) ) {
+		foreach ( $search_data as $row ) {
+			if ( is_array( $row ) && (int) ( $row['id'] ?? 0 ) === $tid && $tid > 0 ) {
+				$found = true;
+			}
+		}
+	}
+	$term_route_ok = ( (int) $search_response->get_status() === 200 && $found ) ? 1 : 0;
+
+	// An unregistered taxonomy is a 400, never a silent empty result.
+	$bad = new WP_REST_Request( 'GET', '/kntnt-autolink/v1/terms' );
+	$bad->set_param( 'taxonomy', 'does_not_exist' );
+	$term_badtax_ok = ( (int) rest_do_request( $bad )->get_status() === 400 ) ? 1 : 0;
+
+	// The route is gated by manage_options: an editor (or no user) lacking it is refused.
+	wp_set_current_user( (int) ( $editors[0] ?? 0 ) );
+	$gate = new WP_REST_Request( 'GET', '/kntnt-autolink/v1/terms' );
+	$gate->set_param( 'taxonomy', 'category' );
+	$gate_status = (int) rest_do_request( $gate )->get_status();
+	$term_gate_ok = ( $gate_status === 401 || $gate_status === 403 ) ? 1 : 0;
+	wp_set_current_user( (int) ( $admins[0] ?? 1 ) );
+
+	// Sanitiser round-trip: a mixed/string id input reduces to the taxonomy => list<int>
+	// map the engine reads back.
+	$term_repo = new \Kntnt\Autolink\Settings_Repository();
+	$term_repo->save_settings( [
+		'post_types' => [ 'post', 'page' ],
+		'terms' => [ 'category' => "{$tid}, abc, 0" ],
+	] );
+	$term_reread = new \Kntnt\Autolink\Settings_Repository();
+	$term_roundtrip_ok = ( $term_reread->get_terms() === [ 'category' => [ $tid ] ] ) ? 1 : 0;
+
+	// Engine targeting end-to-end via the real has_term: a post carrying the targeted
+	// category is processed; one outside it is not.
+	$post_in = (int) wp_insert_post( [ 'post_title' => 'In', 'post_status' => 'publish', 'post_type' => 'post', 'post_content' => '<p>autolink</p>' ] );
+	wp_set_object_terms( $post_in, [ $tid ], 'category' );
+	$post_out = (int) wp_insert_post( [ 'post_title' => 'Out', 'post_status' => 'publish', 'post_type' => 'post', 'post_content' => '<p>autolink</p>' ] );
+
+	$GLOBALS['post'] = get_post( $post_in );
+	$rendered_in = (string) apply_filters( 'the_content', '<p>autolink</p>' );
+	$term_engine_in = str_contains( $rendered_in, 'https://example.com/target' ) ? 1 : 0;
+
+	$GLOBALS['post'] = get_post( $post_out );
+	$rendered_out = (string) apply_filters( 'the_content', '<p>autolink</p>' );
+	$term_engine_out = ! str_contains( $rendered_out, 'https://example.com/target' ) ? 1 : 0;
+
+	$GLOBALS['post'] = null;
+} catch ( \Throwable $e ) {
+	$term_route_ok = 0;
+}
+
+// Restore the no-terms defaults so the front-page (a term-less page) renders.
+( new \Kntnt\Autolink\Settings_Repository() )->save_settings( [
+	'post_types' => [ 'post', 'page' ],
+	'deny_tags' => 'h1, h2, h3, h4, h5, h6, a, code, pre, script, style',
+	'skip_class' => 'no-autolink',
+	'link_class' => 'kntnt-autolink',
+	'deny_xpath' => '',
+	'allow_only_xpath' => '',
+	'max_links_per_post' => '10',
+] );
+$termscheck = "TERMSCHECK route={$term_route_ok} badtax={$term_badtax_ok} gate={$term_gate_ok} roundtrip={$term_roundtrip_ok} enginein={$term_engine_in} engineout={$term_engine_out} ENDTERMS";
+
 // A published page (fixed id 42) set as the front page, so it renders at "/".
 if ( get_post( 42 ) === null ) {
 	wp_insert_post( [
@@ -214,7 +307,7 @@ if ( get_post( 42 ) === null ) {
 		'post_title' => 'Autolink Test',
 		'post_status' => 'publish',
 		'post_type' => 'page',
-		'post_content' => "<h2>About autolink</h2>\n<p>This is autolink in a paragraph.</p>\n<p>And nofollowme in a paragraph.</p>\n<!-- {$capcheck} -->\n<!-- {$restcheck} -->\n<!-- {$listcheck} -->\n<!-- {$bulkcheck} -->\n<!-- {$settingscheck} -->",
+		'post_content' => "<h2>About autolink</h2>\n<p>This is autolink in a paragraph.</p>\n<p>And nofollowme in a paragraph.</p>\n<!-- {$capcheck} -->\n<!-- {$restcheck} -->\n<!-- {$listcheck} -->\n<!-- {$bulkcheck} -->\n<!-- {$settingscheck} -->\n<!-- {$termscheck} -->",
 	] );
 }
 update_option( 'show_on_front', 'page' );

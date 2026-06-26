@@ -258,7 +258,11 @@ final class Settings_Repository {
 	}
 
 	/**
-	 * Sanitise the taxonomy-term targeting map into taxonomy => list<int>.
+	 * Sanitise the taxonomy-term targeting map into taxonomy => list<int>. Each
+	 * taxonomy key is reduced with sanitize_key and each term id to a positive
+	 * integer, de-duplicated; a taxonomy left with no valid ids, or an empty key,
+	 * is dropped. The id list accepts both the chip JS hidden-input array and the
+	 * no-JS comma/newline string, like the other chip fields.
 	 *
 	 * @since 1.0.0
 	 *
@@ -271,16 +275,17 @@ final class Settings_Repository {
 		$result = [];
 		foreach ( $terms as $taxonomy => $ids ) {
 			$tax = sanitize_key( (string) $taxonomy );
-			if ( $tax === '' || ! is_array( $ids ) ) {
+			if ( $tax === '' ) {
 				continue;
 			}
 			$clean_ids = [];
-			foreach ( $ids as $id ) {
+			foreach ( $this->to_list( $ids ) as $id ) {
 				$value = $this->to_int( $id );
 				if ( $value > 0 ) {
 					$clean_ids[] = $value;
 				}
 			}
+			$clean_ids = array_values( array_unique( $clean_ids ) );
 			if ( $clean_ids !== [] ) {
 				$result[ $tax ] = $clean_ids;
 			}

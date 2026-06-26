@@ -96,8 +96,8 @@ final class Settings_Page {
 			'show_in_rest' => false,
 		] );
 
-		// Section 1 — Targeting. Post types only here; term targeting (issue #5)
-		// will add its control to this same section later.
+		// Section 1 — Targeting. Post types, then the optional repeatable
+		// term-targeting control (taxonomy + term chips).
 		add_settings_section(
 			self::SECTION_TARGETING,
 			__( 'Targeting', 'kntnt-autolink' ),
@@ -111,6 +111,15 @@ final class Settings_Page {
 			self::SLUG,
 			self::SECTION_TARGETING,
 			[ 'label_for' => 'kntnt-autolink-post_types' ],
+		);
+		// The term control is a repeatable stack of rows, not a single input, so it
+		// carries no label_for; its <th> is a plain title.
+		add_settings_field(
+			'terms',
+			__( 'Terms', 'kntnt-autolink' ),
+			$this->render_terms_field( ... ),
+			self::SLUG,
+			self::SECTION_TARGETING,
 		);
 
 		// Section 2 — Link behaviour & limits. nofollow / new-tab are per-group and
@@ -214,7 +223,12 @@ final class Settings_Page {
 	}
 
 	/**
-	 * Enqueue the chip widget's stylesheet and script — only on this screen.
+	 * Enqueue the chip widget's stylesheet and script, plus the term-targeting
+	 * autocomplete that extends the chip widget through its registerSource seam —
+	 * only on this screen. The terms script depends on the chip script (so the
+	 * registry exists when it registers its source) and is configured with the REST
+	 * term-search endpoint, a nonce and the settings option key the nested chip names
+	 * are built from.
 	 *
 	 * @since 1.2.0
 	 */
@@ -226,6 +240,13 @@ final class Settings_Page {
 
 		wp_enqueue_style( 'kntnt-autolink-chips', plugins_url( 'css/chips.css', $this->plugin_file ), [], $this->version );
 		wp_enqueue_script( 'kntnt-autolink-chips', plugins_url( 'js/chips.js', $this->plugin_file ), [], $this->version, true );
+
+		wp_enqueue_script( 'kntnt-autolink-terms', plugins_url( 'js/terms.js', $this->plugin_file ), [ 'kntnt-autolink-chips' ], $this->version, true );
+		wp_localize_script( 'kntnt-autolink-terms', 'kntntAutolinkTerms', [
+			'rest' => esc_url_raw( rest_url( 'kntnt-autolink/v1/terms' ) ),
+			'nonce' => wp_create_nonce( 'wp_rest' ),
+			'optionKey' => self::OPTION,
+		] );
 
 	}
 
@@ -253,12 +274,15 @@ final class Settings_Page {
 	}
 
 	/**
-	 * The Targeting section's intro line.
+	 * The Targeting section's intro line. It states the include-only term rule in
+	 * full: a post is processed when it is one of the enabled post types AND carries
+	 * ANY of the chosen terms, and an empty term selection means every post of the
+	 * enabled post types.
 	 *
 	 * @since 1.2.0
 	 */
 	public function render_targeting_intro(): void {
-		echo '<p>' . esc_html__( 'Limit autolinking to the chosen post types.', 'kntnt-autolink' ) . '</p>';
+		echo '<p>' . esc_html__( 'Limit autolinking to the chosen post types, and optionally to posts carrying any of the chosen terms. A post is processed when it is one of the enabled post types and carries at least one selected term; with no terms selected, every post of the enabled post types is processed. This is an include-only filter — there is no exclude.', 'kntnt-autolink' ) . '</p>';
 	}
 
 	/**
@@ -326,6 +350,151 @@ final class Settings_Page {
 			description: __( 'Tags whose contents are never linked. Type a tag and press Enter.', 'kntnt-autolink' ),
 		);
 
+	}
+
+	/**
+	 * Render the repeatable term-targeting control: a stack of taxonomy rows, each a
+	 * [ taxonomy selector ] + [ term chips ] pair, an inert <template> the JS clones
+	 * for an Add-taxonomy row, the Add taxonomy button, and the help line restating
+	 * the include-only semantics. Saved selections render one row per saved
+	 * taxonomy, so the control round-trips through the Settings API and reloads.
+	 *
+	 * @since 1.2.0
+	 */
+	public function render_terms_field(): void {
+
+		$taxonomies = $this->public_taxonomies();
+		$saved = $this->settings->get_settings()['terms'] ?? [];
+		$saved = is_array( $saved ) ? $saved : [];
+
+		echo '<div class="kntnt-autolink-terms" data-kntnt-autolink-terms>';
+
+		// One row per saved taxonomy that is still registered; a stale taxonomy whose
+		// registration is gone is skipped so it can never resurface as a dead row.
+		echo '<div class="kntnt-autolink-terms__rows">';
+		foreach ( $saved as $taxonomy => $ids ) {
+			$taxonomy = (string) $taxonomy;
+			if ( isset( $taxonomies[ $taxonomy ] ) ) {
+				$this->render_term_row( $taxonomy, $this->term_id_list( $ids ), $taxonomies );
+			}
+		}
+		echo '</div>';
+
+		// The template the JS clones for a new row; its content never submits.
+		echo '<template class="kntnt-autolink-terms__template">';
+		$this->render_term_row( '__TAX__', [], $taxonomies );
+		echo '</template>';
+
+		echo '<p><button type="button" class="button kntnt-autolink-add-taxonomy">' . esc_html__( 'Add taxonomy', 'kntnt-autolink' ) . '</button></p>';
+		echo '<p class="description">' . esc_html__( 'Optional. Limit autolinking to posts carrying any of the chosen terms. A post is processed when it is one of the enabled post types and carries at least one selected term; with no terms selected, every post of the enabled post types is processed. This is an include-only filter — there is no exclude.', 'kntnt-autolink' ) . '</p>';
+
+		echo '</div>';
+
+	}
+
+	/**
+	 * Render one term-targeting row: a taxonomy selector and the term chips bound to
+	 * it. The selector carries no name, so it never submits; it only labels the row
+	 * and, with JS, rebinds the chips to its taxonomy. The chips are free-mode chips
+	 * whose tokens are term ids, labelled by term name for display, with autocomplete
+	 * backed by the 'terms' source. The placeholder taxonomy "__TAX__" marks the
+	 * template row the JS clones.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string                   $taxonomy   The bound taxonomy slug.
+	 * @param list<int>                $term_ids   Currently selected term ids.
+	 * @param array<array-key, string> $taxonomies Registered taxonomies: slug => label.
+	 */
+	private function render_term_row( string $taxonomy, array $term_ids, array $taxonomies ): void {
+
+		echo '<div class="kntnt-autolink-term-row" data-kntnt-autolink-term-row>';
+
+		echo '<select class="kntnt-autolink-term-row__taxonomy" aria-label="' . esc_attr__( 'Taxonomy', 'kntnt-autolink' ) . '">';
+		foreach ( $taxonomies as $slug => $label ) {
+			$selected = $slug === $taxonomy ? ' selected' : '';
+			echo '<option value="' . esc_attr( $slug ) . '"' . $selected . '>' . esc_html( $label ) . '</option>';
+		}
+		echo '</select>';
+
+		// Label each saved id by its term name so the chips read as names, not numbers.
+		$labels = [];
+		$values = [];
+		foreach ( $term_ids as $id ) {
+			$values[] = (string) $id;
+			$labels[ (string) $id ] = $this->term_label( $id, $taxonomy );
+		}
+
+		$this->render_chip_field(
+			key: 'terms-' . $taxonomy,
+			mode: 'free',
+			values: $values,
+			options: $labels,
+			placeholder: __( 'Search terms…', 'kntnt-autolink' ),
+			description: '',
+			name: self::OPTION . '[terms][' . $taxonomy . ']',
+			suggest: 'terms',
+			taxonomy: $taxonomy,
+		);
+
+		echo '<button type="button" class="button-link kntnt-autolink-term-row__remove" aria-label="' . esc_attr__( 'Remove taxonomy', 'kntnt-autolink' ) . '">&times;</button>';
+
+		echo '</div>';
+
+	}
+
+	/**
+	 * The registered public taxonomies as slug => human label, the closed set the
+	 * row selector offers.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<array-key, string>
+	 */
+	private function public_taxonomies(): array {
+		$result = [];
+		foreach ( get_taxonomies( [ 'public' => true ], 'objects' ) as $slug => $taxonomy ) {
+			$result[ $slug ] = $taxonomy->label;
+		}
+		return $result;
+	}
+
+	/**
+	 * Coerce a stored id list into a list of positive integers for display.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return list<int>
+	 */
+	private function term_id_list( mixed $ids ): array {
+		if ( ! is_array( $ids ) ) {
+			return [];
+		}
+		$result = [];
+		foreach ( $ids as $id ) {
+			if ( is_numeric( $id ) && (int) $id > 0 ) {
+				$result[] = (int) $id;
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * The display name of a term, falling back to its id when the term cannot be
+	 * resolved. Read via an array cast so it works for a WP_Term without depending
+	 * on the class at unit-test time.
+	 *
+	 * @since 1.2.0
+	 */
+	private function term_label( int $id, string $taxonomy ): string {
+		$term = get_term( $id, $taxonomy );
+		if ( is_object( $term ) ) {
+			$name = ( (array) $term )['name'] ?? null;
+			if ( is_string( $name ) && $name !== '' ) {
+				return $name;
+			}
+		}
+		return (string) $id;
 	}
 
 	/**
@@ -407,12 +576,17 @@ final class Settings_Page {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param string                $key         Settings key (post_types, deny_tags).
-	 * @param string                $mode        'closed' (fixed options) or 'free' (any text).
-	 * @param list<string>          $values      Current chip values.
-	 * @param array<string, string> $options     Closed-mode option set: token => label.
+	 * @param string                   $key         Settings key (post_types, deny_tags).
+	 * @param string                   $mode        'closed' (fixed options) or 'free' (any text).
+	 * @param list<string>             $values      Current chip values.
+	 * @param array<array-key, string> $options     Token => label map: the closed-mode
+	 *                                               option set, or free-mode display labels
+	 *                                               (term-id keys coerce to int).
 	 * @param string                $placeholder Entry-field placeholder.
-	 * @param string                $description Grey help line.
+	 * @param string                $description Grey help line; omitted when empty.
+	 * @param string|null           $name        Explicit submit name; defaults to OPTION[key].
+	 * @param string|null           $suggest     Async suggestion source name (free mode).
+	 * @param string|null           $taxonomy    Taxonomy carried to the suggestion source.
 	 */
 	private function render_chip_field(
 		string $key,
@@ -421,28 +595,42 @@ final class Settings_Page {
 		array $options,
 		string $placeholder,
 		string $description,
+		?string $name = null,
+		?string $suggest = null,
+		?string $taxonomy = null,
 	): void {
 
 		$id = 'kntnt-autolink-' . $key;
-		$name = self::OPTION . '[' . $key . ']';
+		$name ??= self::OPTION . '[' . $key . ']';
 
 		echo '<div class="kntnt-autolink-chips" data-kntnt-autolink-chips data-key="' . esc_attr( $key ) . '"';
 		echo ' data-mode="' . esc_attr( $mode ) . '" data-name="' . esc_attr( $name ) . '"';
-		echo ' data-placeholder="' . esc_attr( $placeholder ) . '">';
+		echo ' data-placeholder="' . esc_attr( $placeholder ) . '"';
+		if ( $suggest !== null ) {
+			echo ' data-suggest="' . esc_attr( $suggest ) . '"';
+		}
+		if ( $taxonomy !== null ) {
+			echo ' data-taxonomy="' . esc_attr( $taxonomy ) . '"';
+		}
+		echo '>';
 
 		// The no-JS control and the JS source of initial values: a textarea posting
-		// the comma-separated tokens under the option key.
+		// the comma-separated tokens under the field name.
 		echo '<textarea class="kntnt-autolink-chips__input large-text" id="' . esc_attr( $id ) . '"';
 		echo ' name="' . esc_attr( $name ) . '" rows="2">' . esc_textarea( implode( ', ', $values ) ) . '</textarea>';
 
-		// Closed-mode option set, read by the script to build a fixed-option selector.
+		// Token => label map, read by the script: the closed-mode fixed option set, or
+		// the display labels for free-mode tokens (e.g. term names for term ids).
 		if ( $options !== [] ) {
 			echo '<script type="application/json" class="kntnt-autolink-chips__options">';
 			echo wp_json_encode( $options );
 			echo '</script>';
 		}
 
-		echo '<p class="description">' . esc_html( $description ) . '</p>';
+		if ( $description !== '' ) {
+			echo '<p class="description">' . esc_html( $description ) . '</p>';
+		}
+
 		echo '</div>';
 
 	}

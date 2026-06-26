@@ -135,6 +135,49 @@ it( 'sanitize_settings rejects post types outside the registered public set', fu
 	expect( $result['post_types'] )->toBe( [ 'post', 'page' ] );
 } );
 
+it( 'sanitize_settings sanitises the term-targeting map into taxonomy => list<int>', function (): void {
+	stub_settings_sanitisers();
+
+	// The repeatable term control posts a terms map (taxonomy => term ids); the
+	// sanitiser keys the taxonomy, absints the ids, drops empties and non-positive
+	// ids, and drops a taxonomy left with no valid ids or an empty key.
+	$result = ( new Settings_Repository() )->sanitize_settings( [
+		'terms' => [
+			'Category' => [ '5', '7', 'abc', '0', '-3', '5' ],
+			'post_tag' => [ '12' ],
+			'' => [ '9' ],
+			'empty_tax' => [ 'x', '0' ],
+		],
+	] );
+
+	expect( $result['terms'] )->toBe( [
+		'category' => [ 5, 7 ],
+		'post_tag' => [ 12 ],
+	] );
+} );
+
+it( 'sanitize_settings parses the no-JS comma/newline string of term ids', function (): void {
+	stub_settings_sanitisers();
+
+	// Without JS the term chips degrade to a textarea posting a single comma/newline
+	// string of ids per taxonomy; the sanitiser must accept that shape too.
+	$result = ( new Settings_Repository() )->sanitize_settings( [
+		'terms' => [ 'category' => "5, 7\n abc \n0" ],
+	] );
+
+	expect( $result['terms'] )->toBe( [ 'category' => [ 5, 7 ] ] );
+} );
+
+it( 'sanitize_settings round-trips the term map back into get_terms', function (): void {
+	stub_settings_sanitisers();
+	$sanitised = ( new Settings_Repository() )->sanitize_settings( [ 'terms' => [ 'category' => [ '3', '5' ] ] ] );
+
+	// The sanitised option, read back, is exactly the taxonomy => list<int> map the
+	// engine's is_in_scope consumes — selections persist and reload faithfully.
+	Functions\when( 'get_option' )->justReturn( $sanitised );
+	expect( ( new Settings_Repository() )->get_terms() )->toBe( [ 'category' => [ 3, 5 ] ] );
+} );
+
 it( 'sanitize_settings coerces the post cap to a positive integer', function (): void {
 	stub_settings_sanitisers();
 	$repo = new Settings_Repository();

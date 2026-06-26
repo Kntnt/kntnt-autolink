@@ -31,6 +31,11 @@
 #     options.php runs on save rejects a post type outside the registered public
 #     set, parses the no-JS comma string for deny tags into a list, and coerces the
 #     post cap to a positive integer — the saved option round-trips for the engine.
+#   Scenario 8 (term-targeting end-to-end): the REST term-search route returns the
+#     matching terms of a registered taxonomy, gated to manage_options and rejecting
+#     an unregistered taxonomy with a 400; the settings sanitiser round-trips the
+#     taxonomy => term-ids map; and the engine, through the real has_term, links only
+#     a post carrying a selected term and of an enabled post type.
 #
 # Prerequisites: Node >= 20 with npx (uses @wp-playground/cli).
 # Usage: bash tests/Integration/run.sh
@@ -146,6 +151,9 @@ assert_contains "$OUT" 'BULKCHECK status=200 setcap=1 delete=1 ENDBULK' "bulk ro
 
 echo "---- Scenario 7: Settings-API sanitiser round-trip end-to-end ----"
 assert_contains "$OUT" 'SETTINGSCHECK posttypes=1 denytags=1 cap=1 ENDSETTINGS' "saved settings round-trip: unregistered post types rejected, no-JS deny-tag string parsed, post cap coerced positive"
+
+echo "---- Scenario 8: term-targeting route + sanitiser + engine end-to-end ----"
+assert_contains "$OUT" 'TERMSCHECK route=1 badtax=1 gate=1 roundtrip=1 enginein=1 engineout=1 ENDTERMS' "term-search route returns terms for a registered taxonomy (gated to manage_options, rejecting an unknown taxonomy), the term map round-trips through the sanitiser, and the engine links only a post carrying a selected term"
 
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"

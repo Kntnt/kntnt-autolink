@@ -142,3 +142,32 @@ it( 'runs on a post that has a configured term', function (): void {
 	$cf = make_content_filter( [ 'terms' => [ 'category' => [ 5 ] ] ], one_group() );
 	expect( $cf->filter_content( '<p>cat</p>' ) )->toContain( '<a class="kntnt-autolink"' );
 } );
+
+it( 'runs when the post carries ANY one of several configured taxonomies (ANY-of)', function (): void {
+	Functions\when( 'get_post' )->justReturn( fake_post( 'post' ) );
+	// The post lacks the configured category term but carries the configured tag
+	// term; a single match across any of the configured taxonomies is enough.
+	Functions\when( 'has_term' )->alias( static fn ( $ids, $taxonomy, $post = null ): bool => $taxonomy === 'post_tag' );
+	passthrough_filters();
+	$cf = make_content_filter( [ 'terms' => [ 'category' => [ 5 ], 'post_tag' => [ 9 ] ] ], one_group() );
+	expect( $cf->filter_content( '<p>cat</p>' ) )->toContain( '<a class="kntnt-autolink"' );
+} );
+
+it( 'does not run on a wrong post type even when it carries a configured term (AND with post types)', function (): void {
+	Functions\when( 'get_post' )->justReturn( fake_post( 'attachment' ) );
+	Functions\when( 'has_term' )->justReturn( true );
+	passthrough_filters();
+	$cf = make_content_filter( [ 'terms' => [ 'category' => [ 5 ] ] ], one_group() );
+	// attachment is not an enabled post type, so the term match cannot pull it in.
+	expect( $cf->filter_content( '<p>cat</p>' ) )->toBe( '<p>cat</p>' );
+} );
+
+it( 'runs on every enabled-post-type post when no terms are configured (empty-means-all)', function (): void {
+	Functions\when( 'get_post' )->justReturn( fake_post( 'post' ) );
+	// An empty term map must never consult has_term: every post of the enabled types
+	// is in scope.
+	Functions\expect( 'has_term' )->never();
+	passthrough_filters();
+	$cf = make_content_filter( [ 'terms' => [] ], one_group() );
+	expect( $cf->filter_content( '<p>cat</p>' ) )->toContain( '<a class="kntnt-autolink"' );
+} );
