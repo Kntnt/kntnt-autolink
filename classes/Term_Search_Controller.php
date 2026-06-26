@@ -9,7 +9,7 @@
  * enforced by core REST authentication). Both inputs are sanitised and the
  * taxonomy is validated against the registry before any query runs.
  *
- * @since 1.2.0
+ * @since 1.1.0
  */
 
 declare( strict_types = 1 );
@@ -18,19 +18,19 @@ namespace Kntnt\Autolink;
 
 final class Term_Search_Controller {
 
-	/** @since 1.2.0 */
+	/** @since 1.1.0 */
 	private const REST_NAMESPACE = 'kntnt-autolink/v1';
 
-	/** @since 1.2.0 */
+	/** @since 1.1.0 */
 	private const ROUTE = 'terms';
 
-	/** The largest number of suggestions one search returns. @since 1.2.0 */
+	/** The largest number of suggestions one search returns. @since 1.1.0 */
 	private const LIMIT = 20;
 
 	/**
 	 * Register the REST route on rest_api_init.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function register_hooks(): void {
 		add_action( 'rest_api_init', $this->register_routes( ... ) );
@@ -39,7 +39,7 @@ final class Term_Search_Controller {
 	/**
 	 * Register the term-search route on the plugin's own namespace.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function register_routes(): void {
 		register_rest_route( self::REST_NAMESPACE, '/' . self::ROUTE, [
@@ -55,7 +55,7 @@ final class Term_Search_Controller {
 	 * Whether the current user may configure the structural rules — the gate for
 	 * term search, checked before any work is done.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function can_manage_settings(): bool {
 		return current_user_can( 'manage_options' );
@@ -66,7 +66,7 @@ final class Term_Search_Controller {
 	 * list of id/name pairs. An unknown or missing taxonomy is a 400 — never a
 	 * silent empty result that would hide a misconfiguration from the caller.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function search( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
 
@@ -107,7 +107,7 @@ final class Term_Search_Controller {
 	/**
 	 * Coerce a scalar value to string; non-scalars become an empty string.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	private function to_string( mixed $value ): string {
 		return is_scalar( $value ) ? (string) $value : '';

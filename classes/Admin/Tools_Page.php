@@ -90,7 +90,9 @@ final class Tools_Page {
 				'edit' => __( 'Edit link group', 'kntnt-autolink' ),
 				'confirmDelete' => __( 'Delete this link group?', 'kntnt-autolink' ),
 				'confirmBulkDelete' => __( 'Delete the selected link groups?', 'kntnt-autolink' ),
+				/* translators: %d: number of selected link groups. */
 				'setCapPromptSingular' => __( 'Set the group cap for the %d selected group to:', 'kntnt-autolink' ),
+				/* translators: %d: number of selected link groups. */
 				'setCapPromptPlural' => __( 'Set the group cap for the %d selected groups to:', 'kntnt-autolink' ),
 				'firstPage' => __( 'First page', 'kntnt-autolink' ),
 				'prevPage' => __( 'Previous page', 'kntnt-autolink' ),

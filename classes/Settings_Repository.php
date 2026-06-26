@@ -126,7 +126,7 @@ final class Settings_Repository {
 	 * field can never enable an unregistered type; and the post cap is coerced to
 	 * a positive integer, never zero or negative.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @param array<array-key, mixed> $input Raw form input.
 	 * @return array<string, mixed>
@@ -192,7 +192,7 @@ final class Settings_Repository {
 	 * JS off — the single comma/newline string the textarea posts; both reduce to
 	 * the same token list so the rest of the sanitiser is representation-agnostic.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @return list<string>
 	 */

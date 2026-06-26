@@ -1,115 +1,345 @@
 # Copyright (C) 2026 Kntnt
-# This file is distributed under the GPL-2.0-or-later license.
+# This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Kntnt Autolink 1.0.0\n"
-"Report-Msgid-Bugs-To: https://github.com/Kntnt/kntnt-autolink/issues\n"
-"POT-Creation-Date: 2026-06-25T00:00:00+00:00\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Project-Id-Version: Kntnt Autolink 1.1.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/kntnt-autolink\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: \n"
+"POT-Creation-Date: 2026-06-26T15:10:12+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.11.0\n"
 "X-Domain: kntnt-autolink\n"
 
+#. Plugin Name of the plugin
 #: kntnt-autolink.php
-msgid "Kntnt Autolink requires PHP 8.4 or later and has been deactivated."
+msgid "Kntnt Autolink"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Autolink"
+#. Plugin URI of the plugin
+#: kntnt-autolink.php
+msgid "https://github.com/Kntnt/kntnt-autolink"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "You are not allowed to access this page."
+#. Description of the plugin
+#: kntnt-autolink.php
+msgid "Rule-based link-group→URL autolinking with include-only targeting, deep-module architecture, and a small filter API."
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "You are not allowed to manage keywords."
+#. Author of the plugin
+#: kntnt-autolink.php
+msgid "Kntnt"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "You are not allowed to change these settings."
+#. Author URI of the plugin
+#: kntnt-autolink.php
+msgid "https://www.kntnt.com/"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Keywords"
+#: classes/Admin/Action_Links.php:48
+msgid "Link groups"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "The base form is the canonical surface form; variants are additional equal-weight forms, one per line or comma-separated. All forms link to the same URL."
+#: classes/Admin/Action_Links.php:49
+#: classes/Admin/Tools_Page.php:386
+msgid "Settings"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Add keyword"
+#: classes/Admin/Link_Groups_List_Table.php:45
+#: classes/Admin/Link_Groups_List_Table.php:229
+msgid "Phrases"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Base form"
-msgstr ""
-
-#: classes/Admin/Tools_Page.php
-msgid "Variants"
-msgstr ""
-
-#: classes/Admin/Tools_Page.php
+#: classes/Admin/Link_Groups_List_Table.php:46
+#: classes/Admin/Link_Groups_List_Table.php:242
+#: classes/Admin/Tools_Page.php:408
 msgid "URL"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Max links per post"
+#: classes/Admin/Link_Groups_List_Table.php:47
+#: classes/Admin/Link_Groups_List_Table.php:243
+#: classes/Admin/Tools_Page.php:412
+#: classes/Admin/Tools_Page.php:446
+msgid "Group cap"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Save keyword"
-msgstr ""
-
-#: classes/Admin/Tools_Page.php
+#: classes/Admin/Link_Groups_List_Table.php:62
+#: classes/Admin/Link_Groups_List_Table.php:221
 msgid "Delete"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Structural rules (administrators only)"
+#: classes/Admin/Link_Groups_List_Table.php:63
+msgid "Set group cap…"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Deny tags"
+#: classes/Admin/Link_Groups_List_Table.php:171
+msgid "No link groups yet. Use “Add link group” to create one."
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Skip class"
+#: classes/Admin/Link_Groups_List_Table.php:220
+msgid "Edit"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Deny XPath"
+#: classes/Admin/Link_Groups_List_Table.php:226
+msgid "Select this link group"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Allow-only XPath"
+#: classes/Admin/Link_Groups_List_Table.php:231
+msgid "(no phrases)"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Link class"
+#: classes/Admin/Link_Groups_List_Table.php:240
+msgid "Show more details"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Add rel=\"nofollow\""
+#: classes/Admin/Settings_Page.php:77
+#: classes/Admin/Settings_Page.php:78
+#: classes/Admin/Tools_Page.php:63
+#: classes/Admin/Tools_Page.php:64
+#: classes/Admin/Tools_Page.php:152
+#: classes/Admin/Tools_Page.php:245
+msgid "Autolink"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Open in a new tab"
+#: classes/Admin/Settings_Page.php:103
+msgid "Targeting"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
+#: classes/Admin/Settings_Page.php:109
 msgid "Post types"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Terms (one \"taxonomy: id, id\" per line)"
+#: classes/Admin/Settings_Page.php:119
+msgid "Terms"
 msgstr ""
 
-#: classes/Admin/Tools_Page.php
-msgid "Save settings"
+#: classes/Admin/Settings_Page.php:129
+msgid "Link behaviour & limits"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:135
+msgid "Link CSS class"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:142
+msgid "Class added to every generated link, for theming."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:147
+msgid "Post cap"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:154
+msgid "Maximum number of autolinks across all link groups in one post."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:161
+msgid "Content eligibility (advanced)"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:167
+msgid "Deny tags"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:175
+msgid "Skip class"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:182
+msgid "Elements carrying this class, and their descendants, are never linked."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:187
+msgid "Deny XPath"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:194
+msgid "Optional raw XPath; nodes within its result are excluded from linking."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:199
+msgid "Allow-only XPath"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:206
+msgid "Optional raw XPath; when set, only nodes within its result are eligible."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:273
+#: classes/Admin/Tools_Page.php:118
+msgid "You are not allowed to access this page."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:296
+msgid "Manage link groups"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:308
+msgid "Limit autolinking to the chosen post types, and optionally to posts carrying any of the chosen terms. A post is processed when it is one of the enabled post types and carries at least one selected term; with no terms selected, every post of the enabled post types is processed. This is an include-only filter — there is no exclude."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:317
+msgid "How generated links look and how many a post may carry."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:326
+msgid "Fine-grained control over which parts of the content may be linked."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:351
+msgid "Add a post type…"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:352
+msgid "Only posts of the selected types are processed."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:372
+msgid "Add a tag…"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:373
+msgid "Tags whose contents are never linked. Type a tag and press Enter."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:411
+msgid "Add taxonomy"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:412
+msgid "Optional. Limit autolinking to posts carrying any of the chosen terms. A post is processed when it is one of the enabled post types and carries at least one selected term; with no terms selected, every post of the enabled post types is processed. This is an include-only filter — there is no exclude."
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:436
+msgid "Taxonomy"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:456
+msgid "Search terms…"
+msgstr ""
+
+#: classes/Admin/Settings_Page.php:463
+msgid "Remove taxonomy"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:89
+#: classes/Admin/Tools_Page.php:153
+#: classes/Admin/Tools_Page.php:401
+msgid "Add link group"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:90
+msgid "Edit link group"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:91
+msgid "Delete this link group?"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:92
+msgid "Delete the selected link groups?"
+msgstr ""
+
+#. translators: %d: number of selected link groups.
+#: classes/Admin/Tools_Page.php:94
+#: classes/Admin/Tools_Page.php:260
+msgid "Set the group cap for the %d selected group to:"
+msgid_plural "Set the group cap for the %d selected groups to:"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: number of selected link groups.
+#: classes/Admin/Tools_Page.php:96
+msgid "Set the group cap for the %d selected groups to:"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:97
+msgid "First page"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:98
+msgid "Previous page"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:99
+msgid "Next page"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:100
+msgid "Last page"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:101
+msgid "Current Page"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:102
+msgctxt "paging: current page of total"
+msgid "of"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:156
+msgid "A link group turns any of its phrases into links to one URL, sharing one group cap."
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:165
+msgid "Search link groups"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:270
+#: classes/Admin/Tools_Page.php:443
+#: classes/Admin/Tools_Page.php:452
+msgid "Set group cap"
+msgstr ""
+
+#. translators: %d: number of selected link groups.
+#: classes/Admin/Tools_Page.php:274
+msgid "You are about to delete %d selected link group. This cannot be undone."
+msgid_plural "You are about to delete %d selected link groups. This cannot be undone."
+msgstr[0] ""
+msgstr[1] ""
+
+#: classes/Admin/Tools_Page.php:282
+msgid "Delete link groups"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:287
+#: classes/Admin/Tools_Page.php:423
+#: classes/Admin/Tools_Page.php:451
+msgid "Cancel"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:404
+msgid "Phrases (one per line)"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:416
+msgid "Add rel=\"nofollow\""
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:419
+msgid "Open in a new tab"
+msgstr ""
+
+#: classes/Admin/Tools_Page.php:424
+msgid "Save link group"
+msgstr ""
+
+#: classes/Rest_Controller.php:312
+msgid "A link group needs at least one phrase and a destination URL."
+msgstr ""
+
+#: classes/Rest_Controller.php:325
+msgid "No link group has that id."
+msgstr ""
+
+#: classes/Term_Search_Controller.php:78
+msgid "Unknown taxonomy."
+msgstr ""
+
+#: kntnt-autolink.php:25
+msgid "Kntnt Autolink requires PHP 8.4 or later and has been deactivated."
 msgstr ""

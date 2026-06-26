@@ -13,7 +13,7 @@
  * that posts a comma/newline string under the same option key, so the page saves
  * either way; the sanitiser accepts both shapes.
  *
- * @since 1.2.0
+ * @since 1.1.0
  */
 
 declare( strict_types = 1 );
@@ -27,22 +27,22 @@ final class Settings_Page {
 	/** Admin page slug and the do_settings_sections() page handle. @since 1.1.0 */
 	private const SLUG = 'kntnt-autolink';
 
-	/** The settings group passed to settings_fields()/register_setting(). @since 1.2.0 */
+	/** The settings group passed to settings_fields()/register_setting(). @since 1.1.0 */
 	private const GROUP = 'kntnt_autolink';
 
-	/** The option this page reads and writes, shared with Settings_Repository. @since 1.2.0 */
+	/** The option this page reads and writes, shared with Settings_Repository. @since 1.1.0 */
 	private const OPTION = 'kntnt_autolink_settings';
 
-	/** Section ids, in render order. @since 1.2.0 */
+	/** Section ids, in render order. @since 1.1.0 */
 	private const SECTION_TARGETING = 'kntnt_autolink_targeting';
 	private const SECTION_BEHAVIOUR = 'kntnt_autolink_behaviour';
 	private const SECTION_CONTENT = 'kntnt_autolink_content';
 
-	/** The page's hook suffix, so assets load only on this screen. @since 1.2.0 */
+	/** The page's hook suffix, so assets load only on this screen. @since 1.1.0 */
 	private ?string $hook_suffix = null;
 
 	/**
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @param Settings_Repository $settings    Reads and sanitises the option.
 	 * @param string              $plugin_file The main plugin file, for asset URLs.
@@ -58,7 +58,7 @@ final class Settings_Page {
 	 * Register the menu entry, the Settings-API wiring, and the screen-scoped
 	 * asset enqueue.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function register_hooks(): void {
 		add_action( 'admin_menu', $this->add_page( ... ) );
@@ -86,7 +86,7 @@ final class Settings_Page {
 	 * Register the option, its sanitize callback, the three sections and every
 	 * field. options.php saves the option natively after running the callback.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function register_settings(): void {
 
@@ -213,7 +213,7 @@ final class Settings_Page {
 	 * The registered sanitize callback. Delegates to the repository — the single
 	 * source of the option shape — after defending against a non-array submission.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @param mixed $input The raw option value posted to options.php.
 	 * @return array<string, mixed>
@@ -230,7 +230,7 @@ final class Settings_Page {
 	 * term-search endpoint, a nonce and the settings option key the nested chip names
 	 * are built from.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function enqueue( string $hook_suffix ): void {
 
@@ -255,7 +255,7 @@ final class Settings_Page {
 	 * registered slug. The single authority other surfaces (the Tools cross-link,
 	 * the Plugins-screen action links) build the Settings link from.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public static function url(): string {
 		return admin_url( 'options-general.php?page=' . self::SLUG );
@@ -265,7 +265,7 @@ final class Settings_Page {
 	 * Render the page shell and hand the body to the Settings API. Administrators
 	 * only; the field callbacks read only this manage_options-gated screen's data.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function render(): void {
 
@@ -290,7 +290,7 @@ final class Settings_Page {
 	 * page is manage_options-only, so the reader can always reach the Tools
 	 * manager; no capability gate is needed here.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function render_tools_link(): void {
 		echo '<p><a href="' . esc_url( Tools_Page::url() ) . '">' . esc_html__( 'Manage link groups', 'kntnt-autolink' ) . '</a></p>';
@@ -302,7 +302,7 @@ final class Settings_Page {
 	 * ANY of the chosen terms, and an empty term selection means every post of the
 	 * enabled post types.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function render_targeting_intro(): void {
 		echo '<p>' . esc_html__( 'Limit autolinking to the chosen post types, and optionally to posts carrying any of the chosen terms. A post is processed when it is one of the enabled post types and carries at least one selected term; with no terms selected, every post of the enabled post types is processed. This is an include-only filter — there is no exclude.', 'kntnt-autolink' ) . '</p>';
@@ -311,7 +311,7 @@ final class Settings_Page {
 	/**
 	 * The Link behaviour & limits section's intro line.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function render_behaviour_intro(): void {
 		echo '<p>' . esc_html__( 'How generated links look and how many a post may carry.', 'kntnt-autolink' ) . '</p>';
@@ -320,7 +320,7 @@ final class Settings_Page {
 	/**
 	 * The Content eligibility section's intro line.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function render_content_intro(): void {
 		echo '<p>' . esc_html__( 'Fine-grained control over which parts of the content may be linked.', 'kntnt-autolink' ) . '</p>';
@@ -331,7 +331,7 @@ final class Settings_Page {
 	 * the registered public post types, so an invalid type cannot be chosen in the
 	 * JS path and is dropped by the sanitiser in the no-JS path.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function render_post_types_field(): void {
 
@@ -358,7 +358,7 @@ final class Settings_Page {
 	 * Render the deny-tags control: a free-text chip widget, prefilled with the
 	 * default tags whose subtree is never linked.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function render_deny_tags_field(): void {
 
@@ -382,7 +382,7 @@ final class Settings_Page {
 	 * the include-only semantics. Saved selections render one row per saved
 	 * taxonomy, so the control round-trips through the Settings API and reloads.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	public function render_terms_field(): void {
 
@@ -423,7 +423,7 @@ final class Settings_Page {
 	 * backed by the 'terms' source. The placeholder taxonomy "__TAX__" marks the
 	 * template row the JS clones.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @param string                   $taxonomy   The bound taxonomy slug.
 	 * @param list<int>                $term_ids   Currently selected term ids.
@@ -470,7 +470,7 @@ final class Settings_Page {
 	 * The registered public taxonomies as slug => human label, the closed set the
 	 * row selector offers.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @return array<array-key, string>
 	 */
@@ -485,7 +485,7 @@ final class Settings_Page {
 	/**
 	 * Coerce a stored id list into a list of positive integers for display.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @return list<int>
 	 */
@@ -507,7 +507,7 @@ final class Settings_Page {
 	 * resolved. Read via an array cast so it works for a WP_Term without depending
 	 * on the class at unit-test time.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 */
 	private function term_label( int $id, string $taxonomy ): string {
 		$term = get_term( $id, $taxonomy );
@@ -523,7 +523,7 @@ final class Settings_Page {
 	/**
 	 * Render a single-line text field bound to a settings key.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @param array{key: string, description?: string} $args
 	 */
@@ -534,7 +534,7 @@ final class Settings_Page {
 	/**
 	 * Render a positive-integer number field bound to a settings key.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @param array{key: string, description?: string} $args
 	 */
@@ -545,7 +545,7 @@ final class Settings_Page {
 	/**
 	 * Render a text or number input bound to a settings key, with its help line.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @param array{key: string, description?: string} $args
 	 */
@@ -569,7 +569,7 @@ final class Settings_Page {
 	/**
 	 * Coerce a stored list value into a list of strings for display.
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @return list<string>
 	 */
@@ -597,7 +597,7 @@ final class Settings_Page {
 	 * <script> the widget reads; issue #5 can add an async suggestion source by
 	 * carrying a data-suggest hook the script resolves (see js/chips.js).
 	 *
-	 * @since 1.2.0
+	 * @since 1.1.0
 	 *
 	 * @param string                   $key         Settings key (post_types, deny_tags).
 	 * @param string                   $mode        'closed' (fixed options) or 'free' (any text).
