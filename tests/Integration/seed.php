@@ -127,6 +127,62 @@ try {
 }
 $listcheck = "LISTCHECK searchphrase={$list_search_phrase_ok} searchurl={$list_search_url_ok} sortpage={$list_sort_page_ok} phrasesort={$list_phrase_sort_ok} mutation={$list_mutation_ok} ENDLIST";
 
+// Exercise the bulk REST route end-to-end in this non-admin context. A POST to
+// the literal /bulk must resolve to the bulk handler (not update with id="bulk"),
+// return 200, and actually mutate: set-cap raises a dedicated group's cap and
+// delete removes another. Two throwaway groups (phrases absent from the content)
+// keep the front-page scenarios untouched; the option is restored to the original
+// two front-page groups afterwards.
+$bulk_status = 0;
+$bulk_setcap_ok = 0;
+$bulk_delete_ok = 0;
+try {
+	$admins = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+	wp_set_current_user( (int) ( $admins[0] ?? 1 ) );
+
+	update_option( 'kntnt_autolink_link_groups', [
+		[ 'id' => 'g1', 'phrases' => [ 'autolink' ], 'url' => 'https://example.com/target', 'cap' => 5 ],
+		[ 'id' => 'g2', 'phrases' => [ 'nofollowme' ], 'url' => 'https://example.com/nofollow', 'cap' => 1, 'nofollow' => true, 'new_tab' => true ],
+		[ 'id' => 'bulkcap', 'phrases' => [ 'zzqqcap' ], 'url' => 'https://example.com/cap', 'cap' => 1 ],
+		[ 'id' => 'bulkdel', 'phrases' => [ 'zzqqdel' ], 'url' => 'https://example.com/del', 'cap' => 1 ],
+	], false );
+
+	$setcap = new WP_REST_Request( 'POST', '/kntnt-autolink/v1/link-groups/bulk' );
+	$setcap->set_param( 'action', 'set-cap' );
+	$setcap->set_param( 'ids', [ 'bulkcap' ] );
+	$setcap->set_param( 'cap', 9 );
+	$setcap_response = rest_do_request( $setcap );
+
+	$del = new WP_REST_Request( 'POST', '/kntnt-autolink/v1/link-groups/bulk' );
+	$del->set_param( 'action', 'delete' );
+	$del->set_param( 'ids', [ 'bulkdel' ] );
+	$del_response = rest_do_request( $del );
+
+	$bulk_status = (int) $setcap_response->get_status();
+	$by_id = [];
+	$after = get_option( 'kntnt_autolink_link_groups' );
+	if ( is_array( $after ) ) {
+		foreach ( $after as $entry ) {
+			if ( is_array( $entry ) && isset( $entry['id'] ) ) {
+				$by_id[ (string) $entry['id'] ] = $entry;
+			}
+		}
+	}
+	$bulk_setcap_ok = isset( $by_id['bulkcap'] ) && (int) ( $by_id['bulkcap']['cap'] ?? 0 ) === 9 ? 1 : 0;
+	$bulk_delete_ok = ! isset( $by_id['bulkdel'] ) && (int) $del_response->get_status() === 200 ? 1 : 0;
+} catch ( \Throwable $e ) {
+	$bulk_status = 0;
+}
+
+// Restore the two groups the front-page scenarios depend on (g1 keeps its
+// generous cap of 5, as Scenario 1 asserts the heading is skipped by deny-tags,
+// not by an exhausted cap).
+update_option( 'kntnt_autolink_link_groups', [
+	[ 'id' => 'g1', 'phrases' => [ 'autolink' ], 'url' => 'https://example.com/target', 'cap' => 5 ],
+	[ 'id' => 'g2', 'phrases' => [ 'nofollowme' ], 'url' => 'https://example.com/nofollow', 'cap' => 1, 'nofollow' => true, 'new_tab' => true ],
+], false );
+$bulkcheck = "BULKCHECK status={$bulk_status} setcap={$bulk_setcap_ok} delete={$bulk_delete_ok} ENDBULK";
+
 // A published page (fixed id 42) set as the front page, so it renders at "/".
 if ( get_post( 42 ) === null ) {
 	wp_insert_post( [
@@ -134,7 +190,7 @@ if ( get_post( 42 ) === null ) {
 		'post_title' => 'Autolink Test',
 		'post_status' => 'publish',
 		'post_type' => 'page',
-		'post_content' => "<h2>About autolink</h2>\n<p>This is autolink in a paragraph.</p>\n<p>And nofollowme in a paragraph.</p>\n<!-- {$capcheck} -->\n<!-- {$restcheck} -->\n<!-- {$listcheck} -->",
+		'post_content' => "<h2>About autolink</h2>\n<p>This is autolink in a paragraph.</p>\n<p>And nofollowme in a paragraph.</p>\n<!-- {$capcheck} -->\n<!-- {$restcheck} -->\n<!-- {$listcheck} -->\n<!-- {$bulkcheck} -->",
 	] );
 }
 update_option( 'show_on_front', 'page' );

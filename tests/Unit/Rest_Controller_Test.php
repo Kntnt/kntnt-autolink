@@ -28,7 +28,7 @@ function make_rest_controller(): Rest_Controller {
 	return new Rest_Controller( new Link_Group_Repository(), static fn ( Link_Group_Query $query ): array => [ 'rows' => 'ROWS-HTML', 'total' => 0 ] );
 }
 
-it( 'registers create / rows / update / delete under the kntnt-autolink/v1 namespace, each gated by the capability check', function (): void {
+it( 'registers create / rows / bulk / update / delete under the kntnt-autolink/v1 namespace, each gated by the capability check', function (): void {
 	$registered = [];
 	Functions\when( 'register_rest_route' )->alias( static function ( $namespace, $route, $args ) use ( &$registered ): bool {
 		$registered[ $route ] = [ 'namespace' => $namespace, 'endpoints' => $args ];
@@ -37,10 +37,13 @@ it( 'registers create / rows / update / delete under the kntnt-autolink/v1 names
 
 	make_rest_controller()->register_routes();
 
-	// The three routes live under the plugin's own v1 namespace and cover the CRUD surface.
+	// The routes live under the plugin's own v1 namespace and cover the CRUD plus
+	// bulk surface. The literal bulk route is registered before the id pattern so a
+	// POST to /link-groups/bulk resolves to the bulk handler, not update(id=bulk).
 	expect( array_keys( $registered ) )->toBe( [
 		'/link-groups',
 		'/link-groups/rows',
+		'/link-groups/bulk',
 		'/link-groups/(?P<id>[A-Za-z0-9_\-]+)',
 	] );
 	foreach ( $registered as $route ) {
@@ -50,6 +53,7 @@ it( 'registers create / rows / update / delete under the kntnt-autolink/v1 names
 	// The methods wired on each route.
 	expect( $registered['/link-groups']['endpoints'][0]['methods'] )->toBe( 'POST' );
 	expect( $registered['/link-groups/rows']['endpoints'][0]['methods'] )->toBe( 'GET' );
+	expect( $registered['/link-groups/bulk']['endpoints'][0]['methods'] )->toBe( 'POST' );
 	expect( $registered['/link-groups/(?P<id>[A-Za-z0-9_\-]+)']['endpoints'][0]['methods'] )->toBe( 'POST, PUT, PATCH' );
 	expect( $registered['/link-groups/(?P<id>[A-Za-z0-9_\-]+)']['endpoints'][1]['methods'] )->toBe( 'DELETE' );
 
@@ -192,6 +196,110 @@ it( 'deletes the group named by the route id and re-renders the rows', function 
 	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 0, 'per_page' => 20 ] );
 	expect( $captured )->toHaveCount( 1 );
 	expect( $captured[0]['id'] )->toBe( 'g2' );
+} );
+
+it( 'bulk-deletes the listed ids and returns the re-rendered rows', function (): void {
+	stub_rest_functions();
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/a', 'cap' => 1 ],
+		[ 'id' => 'g2', 'phrases' => [ 'dog' ], 'url' => 'https://example.com/b', 'cap' => 1 ],
+		[ 'id' => 'g3', 'phrases' => [ 'fox' ], 'url' => 'https://example.com/c', 'cap' => 1 ],
+	] );
+	$captured = null;
+	Functions\when( 'update_option' )->alias( static function ( $key, $value, $autoload ) use ( &$captured ): bool {
+		$captured = $value;
+		return true;
+	} );
+
+	$response = make_rest_controller()->bulk( new WP_REST_Request( [ 'action' => 'delete', 'ids' => [ 'g1', 'g3' ] ] ) );
+
+	expect( $response->get_status() )->toBe( 200 );
+	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 0, 'per_page' => 20 ] );
+	expect( $captured )->toHaveCount( 1 );
+	expect( $captured[0]['id'] )->toBe( 'g2' );
+} );
+
+it( 'bulk-sets the group cap on the listed ids and returns the re-rendered rows', function (): void {
+	stub_rest_functions();
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/a', 'cap' => 1 ],
+		[ 'id' => 'g2', 'phrases' => [ 'dog' ], 'url' => 'https://example.com/b', 'cap' => 2 ],
+	] );
+	$captured = null;
+	Functions\when( 'update_option' )->alias( static function ( $key, $value, $autoload ) use ( &$captured ): bool {
+		$captured = $value;
+		return true;
+	} );
+
+	$response = make_rest_controller()->bulk( new WP_REST_Request( [ 'action' => 'set-cap', 'ids' => [ 'g1', 'g2' ], 'cap' => 5 ] ) );
+
+	expect( $response->get_status() )->toBe( 200 );
+	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 0, 'per_page' => 20 ] );
+	expect( $captured[0]['cap'] )->toBe( 5 );
+	expect( $captured[1]['cap'] )->toBe( 5 );
+} );
+
+it( 'bulk set-cap clamps a non-positive cap to the minimum of one, like the per-group cap', function (): void {
+	stub_rest_functions();
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/a', 'cap' => 4 ],
+	] );
+	$captured = null;
+	Functions\when( 'update_option' )->alias( static function ( $key, $value, $autoload ) use ( &$captured ): bool {
+		$captured = $value;
+		return true;
+	} );
+
+	make_rest_controller()->bulk( new WP_REST_Request( [ 'action' => 'set-cap', 'ids' => [ 'g1' ], 'cap' => 0 ] ) );
+
+	expect( $captured[0]['cap'] )->toBe( 1 );
+} );
+
+it( 'rejects a bulk action with no ids and saves nothing', function (): void {
+	stub_rest_functions();
+	Functions\expect( 'update_option' )->never();
+
+	$response = make_rest_controller()->bulk( new WP_REST_Request( [ 'action' => 'delete', 'ids' => [] ] ) );
+
+	expect( $response )->toBeInstanceOf( WP_Error::class );
+	expect( $response->get_error_data()['status'] )->toBe( 400 );
+} );
+
+it( 'rejects a bulk action with an unknown action and saves nothing', function (): void {
+	stub_rest_functions();
+	Functions\expect( 'update_option' )->never();
+
+	$response = make_rest_controller()->bulk( new WP_REST_Request( [ 'action' => 'frobnicate', 'ids' => [ 'g1' ] ] ) );
+
+	expect( $response )->toBeInstanceOf( WP_Error::class );
+	expect( $response->get_error_data()['status'] )->toBe( 400 );
+} );
+
+it( 'preserves the current search, sort and page when it re-renders after a bulk action', function (): void {
+	stub_rest_functions();
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $value );
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/', 'cap' => 1 ],
+		[ 'id' => 'g2', 'phrases' => [ 'dog' ], 'url' => 'https://example.com/d', 'cap' => 1 ],
+	] );
+	Functions\when( 'update_option' )->justReturn( true );
+	$captured = null;
+	$controller = make_capturing_controller( $captured );
+
+	$response = $controller->bulk( new WP_REST_Request( [
+		'action' => 'delete',
+		'ids' => [ 'g1' ],
+		's' => 'dog',
+		'orderby' => 'cap',
+		'order' => 'desc',
+		'paged' => '2',
+	] ) );
+
+	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 1, 'per_page' => 20 ] );
+	expect( $captured->search )->toBe( 'dog' );
+	expect( $captured->orderby )->toBe( 'cap' );
+	expect( $captured->order )->toBe( 'desc' );
+	expect( $captured->page )->toBe( 2 );
 } );
 
 it( 'renders the current rows for the rows route', function (): void {

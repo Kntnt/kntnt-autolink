@@ -31,7 +31,9 @@ final class Link_Groups_List_Table extends \WP_List_Table {
 	}
 
 	/**
-	 * The columns: Phrases (primary) · URL · Group cap.
+	 * The columns: a selection checkbox · Phrases (primary) · URL · Group cap. The
+	 * checkbox column drives row selection and the header select-all for bulk
+	 * actions.
 	 *
 	 * @since 1.1.0
 	 *
@@ -39,9 +41,26 @@ final class Link_Groups_List_Table extends \WP_List_Table {
 	 */
 	public function get_columns() {
 		return [
+			'cb' => '<input type="checkbox" />',
 			'phrases' => __( 'Phrases', 'kntnt-autolink' ),
 			'url' => __( 'URL', 'kntnt-autolink' ),
 			'cap' => __( 'Group cap', 'kntnt-autolink' ),
+		];
+	}
+
+	/**
+	 * The bulk actions offered above and below the table: delete the selected link
+	 * groups, or set the group cap on all of them at once. Public so the unit
+	 * suite can pin the contract without rendering the whole table.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return array<string, string>
+	 */
+	public function get_bulk_actions() {
+		return [
+			'delete' => __( 'Delete', 'kntnt-autolink' ),
+			'set-cap' => __( 'Set group cap…', 'kntnt-autolink' ),
 		];
 	}
 
@@ -203,6 +222,10 @@ final class Link_Groups_List_Table extends \WP_List_Table {
 		];
 
 		echo '<tr>';
+		echo '<th scope="row" class="check-column">';
+		echo '<label class="screen-reader-text" for="kntnt-autolink-cb-' . esc_attr( $group->id ) . '">' . esc_html__( 'Select this link group', 'kntnt-autolink' ) . '</label>';
+		echo '<input id="kntnt-autolink-cb-' . esc_attr( $group->id ) . '" type="checkbox" name="ids[]" value="' . esc_attr( $group->id ) . '">';
+		echo '</th>';
 		echo '<td class="phrases column-phrases has-row-actions column-primary" data-colname="' . esc_attr__( 'Phrases', 'kntnt-autolink' ) . '">';
 		echo '<button type="button" class="button-link row-title kntnt-autolink-edit"' . $data . '>';
 		echo $label !== '' ? esc_html( $label ) : esc_html__( '(no phrases)', 'kntnt-autolink' );

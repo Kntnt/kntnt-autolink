@@ -52,13 +52,34 @@ function make_list_table( array $entries ): Link_Groups_List_Table {
 	return new Link_Groups_List_Table( new Link_Group_Repository() );
 }
 
-it( 'exposes the Phrases, URL and Group cap columns', function (): void {
+it( 'exposes a selection checkbox column then the Phrases, URL and Group cap columns', function (): void {
 	stub_list_table_functions();
 	$columns = make_list_table( [] )->get_columns();
-	expect( array_keys( $columns ) )->toBe( [ 'phrases', 'url', 'cap' ] );
+	expect( array_keys( $columns ) )->toBe( [ 'cb', 'phrases', 'url', 'cap' ] );
 	expect( $columns['phrases'] )->toBe( 'Phrases' );
 	expect( $columns['url'] )->toBe( 'URL' );
 	expect( $columns['cap'] )->toBe( 'Group cap' );
+} );
+
+it( 'offers Delete and Set group cap as bulk actions', function (): void {
+	stub_list_table_functions();
+	$actions = make_list_table( [] )->get_bulk_actions();
+	expect( $actions )->toHaveKey( 'delete' );
+	expect( $actions )->toHaveKey( 'set-cap' );
+	expect( $actions['delete'] )->toBe( 'Delete' );
+} );
+
+it( 'renders a per-row selection checkbox carrying the group id', function (): void {
+	stub_list_table_functions();
+	$table = make_list_table( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/', 'cap' => 1 ],
+	] );
+	$table->prepare_items();
+	$html = $table->rows_html();
+
+	expect( $html )->toContain( 'check-column' );
+	expect( $html )->toContain( 'name="ids[]"' );
+	expect( $html )->toContain( 'value="g1"' );
 } );
 
 it( 'renders one row per group carrying the url, cap and seed data attributes', function (): void {

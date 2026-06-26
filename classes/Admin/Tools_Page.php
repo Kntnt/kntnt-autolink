@@ -24,6 +24,9 @@ final class Tools_Page {
 	private const SLUG = 'kntnt-autolink';
 
 	/** @since 1.1.0 */
+	private const BULK_NONCE = 'kntnt_autolink_bulk';
+
+	/** @since 1.1.0 */
 	private ?string $hook_suffix = null;
 
 	/**
@@ -86,6 +89,9 @@ final class Tools_Page {
 				'addNew' => __( 'Add link group', 'kntnt-autolink' ),
 				'edit' => __( 'Edit link group', 'kntnt-autolink' ),
 				'confirmDelete' => __( 'Delete this link group?', 'kntnt-autolink' ),
+				'confirmBulkDelete' => __( 'Delete the selected link groups?', 'kntnt-autolink' ),
+				'setCapPromptSingular' => __( 'Set the group cap for the %d selected group to:', 'kntnt-autolink' ),
+				'setCapPromptPlural' => __( 'Set the group cap for the %d selected groups to:', 'kntnt-autolink' ),
 				'firstPage' => __( 'First page', 'kntnt-autolink' ),
 				'prevPage' => __( 'Previous page', 'kntnt-autolink' ),
 				'nextPage' => __( 'Next page', 'kntnt-autolink' ),
@@ -98,8 +104,9 @@ final class Tools_Page {
 	}
 
 	/**
-	 * Render the page: the title with an Add New button, the link-group table,
-	 * and the shared add/edit modal.
+	 * Render the page. Capability-gated first; then a confirmed no-JS bulk
+	 * submission is applied and redirected, the first step of a no-JS bulk action
+	 * shows its native confirmation screen, and otherwise the list itself renders.
 	 *
 	 * @since 1.1.0
 	 */
@@ -108,6 +115,33 @@ final class Tools_Page {
 		if ( ! current_user_can( Capabilities::MANAGE_LINK_GROUPS ) ) {
 			wp_die( esc_html__( 'You are not allowed to access this page.', 'kntnt-autolink' ) );
 		}
+
+		// A confirmed no-JS bulk submission: capability checked above, nonce inside,
+		// then apply and redirect so a reload of the result page repeats nothing.
+		if ( $this->is_bulk_confirmation() ) {
+			$this->apply_bulk_and_redirect();
+			return;
+		}
+
+		// The first step of a no-JS bulk action: show the native confirmation screen
+		// (the set-cap screen carries the number field) instead of the list.
+		$pending = $this->pending_bulk_action();
+		if ( $pending !== null ) {
+			$this->render_bulk_confirmation( $pending['action'], $pending['ids'] );
+			return;
+		}
+
+		$this->render_list();
+
+	}
+
+	/**
+	 * Render the list view: the title with an Add New button, the link-group table
+	 * inside its search/bulk-action form, and the shared add/edit and set-cap modals.
+	 *
+	 * @since 1.1.0
+	 */
+	private function render_list(): void {
 
 		$table = new Link_Groups_List_Table( $this->groups );
 		$table->prepare_items();
@@ -119,8 +153,10 @@ final class Tools_Page {
 		echo '<p>' . esc_html__( 'A link group turns any of its phrases into links to one URL, sharing one group cap.', 'kntnt-autolink' ) . '</p>';
 
 		// The list lives in a GET form so the native search box, sortable column
-		// headers and pagination round-trip through the page URL. The hidden page
-		// field keeps the request on this admin screen across those reloads.
+		// headers, pagination and the bulk-actions dropdown round-trip through the
+		// page URL. The hidden page field keeps the request on this admin screen
+		// across those reloads. JS enhances Apply into a REST call; the form is the
+		// no-JS fallback that posts the selection back here for confirmation.
 		echo '<form method="get">';
 		echo '<input type="hidden" name="page" value="' . esc_attr( self::SLUG ) . '">';
 		$table->search_box( __( 'Search link groups', 'kntnt-autolink' ), 'kntnt-autolink-search' );
@@ -128,9 +164,198 @@ final class Tools_Page {
 		echo '</form>';
 
 		$this->render_modal();
+		$this->render_cap_modal();
 
 		echo '</div>';
 
+	}
+
+	/**
+	 * Whether the request is a confirmed no-JS bulk submission (the interstitial
+	 * was submitted), as opposed to the first step or a normal page load.
+	 *
+	 * @since 1.1.0
+	 */
+	private function is_bulk_confirmation(): bool {
+		return ( $_REQUEST['kntnt_autolink_bulk_confirm'] ?? '' ) === '1';
+	}
+
+	/**
+	 * The bulk action awaiting its native confirmation screen, or null when the
+	 * request is not the first step of a no-JS bulk action.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return array{action: string, ids: list<string>}|null
+	 */
+	private function pending_bulk_action(): ?array {
+		$action = $this->request_action();
+		$ids = $this->request_ids();
+		if ( ( $action === 'delete' || $action === 'set-cap' ) && $ids !== [] ) {
+			return [ 'action' => $action, 'ids' => $ids ];
+		}
+		return null;
+	}
+
+	/**
+	 * Apply a confirmed no-JS bulk action, then redirect back to the clean list.
+	 * The capability was checked by render(); the nonce is verified here before any
+	 * mutation, and the cap follows the same clamp as the per-group cap. A bulk
+	 * delete is irreversible, so neither path mutates before both gates pass.
+	 *
+	 * @since 1.1.0
+	 */
+	private function apply_bulk_and_redirect(): void {
+
+		check_admin_referer( self::BULK_NONCE );
+
+		// Mutate only when something is selected; an unknown action is a no-op.
+		$ids = $this->request_ids();
+		if ( $ids !== [] ) {
+			$action = $this->request_string( 'kntnt_autolink_bulk_action' );
+			if ( $action === 'delete' ) {
+				$this->groups->delete_many( $ids );
+			} elseif ( $action === 'set-cap' ) {
+				$this->groups->set_cap( $ids, $this->request_cap() );
+			}
+		}
+
+		wp_safe_redirect( $this->page_url() );
+		exit;
+
+	}
+
+	/**
+	 * Render the native no-JS confirmation screen for a bulk action. The set-cap
+	 * variant carries the same number field the JS modal does; both post back to
+	 * this screen with the selected ids and a nonce.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @param list<string> $ids
+	 */
+	private function render_bulk_confirmation( string $action, array $ids ): void {
+
+		$count = count( $ids );
+
+		echo '<div class="wrap">';
+		echo '<h1 class="wp-heading-inline">' . esc_html__( 'Autolink', 'kntnt-autolink' ) . '</h1>';
+		echo '<hr class="wp-header-end">';
+
+		echo '<form method="post" action="' . esc_url( $this->page_url() ) . '">';
+		foreach ( $ids as $id ) {
+			echo '<input type="hidden" name="ids[]" value="' . esc_attr( $id ) . '">';
+		}
+		echo '<input type="hidden" name="kntnt_autolink_bulk_action" value="' . esc_attr( $action ) . '">';
+		echo '<input type="hidden" name="kntnt_autolink_bulk_confirm" value="1">';
+		wp_nonce_field( self::BULK_NONCE );
+
+		if ( $action === 'set-cap' ) {
+			echo '<p>';
+			echo '<label for="kntnt-autolink-bulk-cap">' . esc_html( sprintf(
+				/* translators: %d: number of selected link groups. */
+				_n(
+					'Set the group cap for the %d selected group to:',
+					'Set the group cap for the %d selected groups to:',
+					$count,
+					'kntnt-autolink',
+				),
+				$count,
+			) ) . '</label> ';
+			echo '<input type="number" id="kntnt-autolink-bulk-cap" name="cap" min="1" value="1" required>';
+			echo '</p>';
+			$submit = __( 'Set group cap', 'kntnt-autolink' );
+		} else {
+			echo '<p>' . esc_html( sprintf(
+				/* translators: %d: number of selected link groups. */
+				_n(
+					'You are about to delete %d selected link group. This cannot be undone.',
+					'You are about to delete %d selected link groups. This cannot be undone.',
+					$count,
+					'kntnt-autolink',
+				),
+				$count,
+			) ) . '</p>';
+			$submit = __( 'Delete link groups', 'kntnt-autolink' );
+		}
+
+		echo '<p class="submit">';
+		echo '<button type="submit" class="button button-primary">' . esc_html( $submit ) . '</button> ';
+		echo '<a href="' . esc_url( $this->page_url() ) . '" class="button">' . esc_html__( 'Cancel', 'kntnt-autolink' ) . '</a>';
+		echo '</p>';
+
+		echo '</form>';
+		echo '</div>';
+
+	}
+
+	/**
+	 * The chosen bulk action from the list-table form, sanitised. WP_List_Table
+	 * submits the top dropdown as `action` and the bottom as `action2`; the
+	 * "no action" sentinel "-1" maps to an empty string.
+	 *
+	 * @since 1.1.0
+	 */
+	private function request_action(): string {
+		$action = $this->request_string( 'action' );
+		if ( $action === '' || $action === '-1' ) {
+			$action = $this->request_string( 'action2' );
+		}
+		return $action === '-1' ? '' : $action;
+	}
+
+	/**
+	 * The selected ids from the request, each sanitised as a key, empties dropped.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return list<string>
+	 */
+	private function request_ids(): array {
+		$raw = $_REQUEST['ids'] ?? [];
+		if ( ! is_array( $raw ) ) {
+			return [];
+		}
+		$ids = [];
+		foreach ( $raw as $item ) {
+			$id = is_scalar( $item ) ? sanitize_key( (string) wp_unslash( (string) $item ) ) : '';
+			if ( $id !== '' ) {
+				$ids[] = $id;
+			}
+		}
+		return $ids;
+	}
+
+	/**
+	 * A single request field, unslashed and sanitised as a key.
+	 *
+	 * @since 1.1.0
+	 */
+	private function request_string( string $key ): string {
+		$value = $_REQUEST[ $key ] ?? '';
+		return is_scalar( $value ) ? sanitize_key( (string) wp_unslash( (string) $value ) ) : '';
+	}
+
+	/**
+	 * The bulk set-cap value from the request, read numerically with the same
+	 * absint() semantics as the REST path — never through sanitize_key(), which
+	 * is for keys and would mangle a non-integer (e.g. "5.5" becoming "55"). The
+	 * repository clamps the result to at least one.
+	 *
+	 * @since 1.1.0
+	 */
+	private function request_cap(): int {
+		$value = $_REQUEST['cap'] ?? '';
+		return is_scalar( $value ) ? absint( wp_unslash( (string) $value ) ) : 0;
+	}
+
+	/**
+	 * The admin URL of this Tools screen, for redirects and the cancel link.
+	 *
+	 * @since 1.1.0
+	 */
+	private function page_url(): string {
+		return admin_url( 'tools.php?page=' . self::SLUG );
 	}
 
 	/**
@@ -168,6 +393,34 @@ final class Tools_Page {
 				<div class="kntnt-autolink-modal__footer">
 					<button type="button" class="button kntnt-autolink-cancel"><?php esc_html_e( 'Cancel', 'kntnt-autolink' ); ?></button>
 					<button type="submit" class="button button-primary"><?php esc_html_e( 'Save link group', 'kntnt-autolink' ); ?></button>
+				</div>
+			</form>
+		</dialog>
+		<?php
+	}
+
+	/**
+	 * Render the bulk "Set group cap" <dialog> modal. JavaScript fills its message
+	 * with the selected count and posts the new cap to the REST bulk route; the
+	 * no-JS path uses the server-rendered confirmation screen instead.
+	 *
+	 * @since 1.1.0
+	 */
+	private function render_cap_modal(): void {
+		?>
+		<dialog id="kntnt-autolink-cap-modal" class="kntnt-autolink-modal" aria-labelledby="kntnt-autolink-cap-title">
+			<form id="kntnt-autolink-cap-form" method="dialog">
+				<div class="kntnt-autolink-modal__body">
+					<h2 id="kntnt-autolink-cap-title"><?php esc_html_e( 'Set group cap', 'kntnt-autolink' ); ?></h2>
+					<p id="kntnt-autolink-cap-message"></p>
+					<div class="kntnt-autolink-modal__field">
+						<label for="kntnt-autolink-cap-value"><?php esc_html_e( 'Group cap', 'kntnt-autolink' ); ?></label>
+						<input type="number" id="kntnt-autolink-cap-value" name="cap" min="1" value="1" required>
+					</div>
+				</div>
+				<div class="kntnt-autolink-modal__footer">
+					<button type="button" class="button kntnt-autolink-cap-cancel"><?php esc_html_e( 'Cancel', 'kntnt-autolink' ); ?></button>
+					<button type="submit" class="button button-primary"><?php esc_html_e( 'Set group cap', 'kntnt-autolink' ); ?></button>
 				</div>
 			</form>
 		</dialog>

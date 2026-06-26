@@ -23,6 +23,10 @@
 #     route honours the search (by phrase and by URL), sort (first phrase and group
 #     cap) and page parameters, and a mutation re-renders the current view, proving
 #     the query layer is wired through REST exactly as the admin JS relies on.
+#   Scenario 6 (bulk REST route end-to-end): a POST to the literal /link-groups/bulk
+#     resolves to the bulk handler (not update with id="bulk"), returns 200, and
+#     actually mutates — bulk set-cap raises a group's cap and bulk delete removes
+#     another.
 #
 # Prerequisites: Node >= 20 with npx (uses @wp-playground/cli).
 # Usage: bash tests/Integration/run.sh
@@ -132,6 +136,9 @@ assert_contains "$OUT" 'RESTCHECK status=200 rows_ok=1 meta_ok=1 ENDREST' "rende
 
 echo "---- Scenario 5: list search / sort / pagination end-to-end ----"
 assert_contains "$OUT" 'LISTCHECK searchphrase=1 searchurl=1 sortpage=1 phrasesort=1 mutation=1 ENDLIST' "render-rows route honours search, sort and page, and a mutation preserves the current view"
+
+echo "---- Scenario 6: bulk REST route end-to-end ----"
+assert_contains "$OUT" 'BULKCHECK status=200 setcap=1 delete=1 ENDBULK' "bulk route resolves and applies set-cap and delete over REST"
 
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"

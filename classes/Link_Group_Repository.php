@@ -83,6 +83,44 @@ final class Link_Group_Repository {
 	}
 
 	/**
+	 * Delete every link group whose id is in the list, in a single write. Ids not
+	 * present are silently ignored.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @param list<string> $ids
+	 */
+	public function delete_many( array $ids ): void {
+		$remove = array_fill_keys( $ids, true );
+		$entries = array_values( array_filter(
+			$this->raw_entries(),
+			fn ( array $entry ): bool => ! isset( $remove[ $this->to_string( $entry['id'] ?? '' ) ] ),
+		) );
+		update_option( self::OPTION, $entries, false );
+	}
+
+	/**
+	 * Set the group cap on every link group whose id is in the list, in a single
+	 * write, leaving the others untouched. The cap is clamped to at least one,
+	 * exactly as the per-group cap is on save (defence in depth at the boundary).
+	 *
+	 * @since 1.1.0
+	 *
+	 * @param list<string> $ids
+	 */
+	public function set_cap( array $ids, int $cap ): void {
+		$targets = array_fill_keys( $ids, true );
+		$cap = max( 1, $cap );
+		$entries = $this->raw_entries();
+		foreach ( $entries as $index => $entry ) {
+			if ( isset( $targets[ $this->to_string( $entry['id'] ?? '' ) ] ) ) {
+				$entries[ $index ]['cap'] = $cap;
+			}
+		}
+		update_option( self::OPTION, $entries, false );
+	}
+
+	/**
 	 * Hydrate a stored entry into a Link_Group, defaulting missing fields.
 	 *
 	 * @since 1.1.0

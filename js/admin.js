@@ -252,4 +252,85 @@
 	if ( cancel ) {
 		cancel.addEventListener( 'click', () => dialog.close() );
 	}
+
+	// Bulk actions: enhance the native dropdown + Apply into REST calls so the
+	// table re-renders without a full reload. Delete confirms inline; Set group
+	// cap opens a small value modal that posts the new cap. Each bulk POST carries
+	// the list's current search, sort and page, so the re-render reflects the very
+	// view the user is looking at — exactly as a single-row mutation does.
+	const capDialog = document.getElementById( 'kntnt-autolink-cap-modal' );
+	const capForm = document.getElementById( 'kntnt-autolink-cap-form' );
+	const capInput = capForm ? capForm.querySelector( '[name="cap"]' ) : null;
+	const capMessage = document.getElementById( 'kntnt-autolink-cap-message' );
+	let capIds = [];
+
+	const selectedIds = () =>
+		[ ...tbody.querySelectorAll( 'input[name="ids[]"]:checked' ) ].map( ( cb ) => cb.value );
+
+	const bulkRequest = async ( body ) => {
+		try {
+			await render( await request( withListQuery( cfg.rest + '/bulk' ), 'POST', body ) );
+		} catch ( error ) {
+			window.console.error( error );
+		}
+	};
+
+	const openCapModal = ( ids ) => {
+		capIds = ids;
+		if ( capInput ) {
+			capInput.value = '1';
+		}
+		if ( capMessage ) {
+			// Pick the singular or plural prompt so a single selection reads
+			// "1 selected group", matching the no-JS _n() path.
+			const template = ids.length === 1 ? cfg.i18n.setCapPromptSingular : cfg.i18n.setCapPromptPlural;
+			capMessage.textContent = ( template || '' ).replace( '%d', String( ids.length ) );
+		}
+		if ( capDialog ) {
+			capDialog.showModal();
+		}
+	};
+
+	const runBulk = ( action ) => {
+		const ids = selectedIds();
+		if ( ids.length === 0 ) {
+			return;
+		}
+		if ( action === 'delete' ) {
+			if ( ! window.confirm( cfg.i18n.confirmBulkDelete ) ) {
+				return;
+			}
+			bulkRequest( { action: 'delete', ids } );
+		} else if ( action === 'set-cap' ) {
+			openCapModal( ids );
+		}
+	};
+
+	document.querySelectorAll( '#doaction, #doaction2' ).forEach( ( button ) => {
+		button.addEventListener( 'click', ( event ) => {
+			const selector = button.id === 'doaction' ? '#bulk-action-selector-top' : '#bulk-action-selector-bottom';
+			const select = document.querySelector( selector );
+			const action = select ? select.value : '-1';
+			if ( action === 'delete' || action === 'set-cap' ) {
+				event.preventDefault();
+				runBulk( action );
+			}
+		} );
+	} );
+
+	if ( capForm ) {
+		capForm.addEventListener( 'submit', ( event ) => {
+			event.preventDefault();
+			const cap = parseInt( capInput.value, 10 ) || 1;
+			bulkRequest( { action: 'set-cap', ids: capIds, cap } );
+			if ( capDialog ) {
+				capDialog.close();
+			}
+		} );
+	}
+
+	const capCancel = capDialog ? capDialog.querySelector( '.kntnt-autolink-cap-cancel' ) : null;
+	if ( capCancel ) {
+		capCancel.addEventListener( 'click', () => capDialog.close() );
+	}
 } )();

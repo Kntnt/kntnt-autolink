@@ -109,6 +109,44 @@ it( 'deletes the entry with the matching id', function (): void {
 	expect( $captured[0]['id'] )->toBe( 'g2' );
 } );
 
+it( 'deletes many groups by id in a single write, keeping the rest', function (): void {
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/a', 'cap' => 1 ],
+		[ 'id' => 'g2', 'phrases' => [ 'dog' ], 'url' => 'https://example.com/b', 'cap' => 1 ],
+		[ 'id' => 'g3', 'phrases' => [ 'fox' ], 'url' => 'https://example.com/c', 'cap' => 1 ],
+	] );
+	$captured = null;
+	expect_link_group_save( $captured );
+	( new Link_Group_Repository() )->delete_many( [ 'g1', 'g3' ] );
+	expect( $captured )->toHaveCount( 1 );
+	expect( $captured[0]['id'] )->toBe( 'g2' );
+} );
+
+it( 'sets the cap on the listed groups only, leaving the others untouched', function (): void {
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/a', 'cap' => 1 ],
+		[ 'id' => 'g2', 'phrases' => [ 'dog' ], 'url' => 'https://example.com/b', 'cap' => 2 ],
+		[ 'id' => 'g3', 'phrases' => [ 'fox' ], 'url' => 'https://example.com/c', 'cap' => 3 ],
+	] );
+	$captured = null;
+	expect_link_group_save( $captured );
+	( new Link_Group_Repository() )->set_cap( [ 'g1', 'g3' ], 7 );
+	expect( $captured )->toHaveCount( 3 );
+	expect( $captured[0]['cap'] )->toBe( 7 );
+	expect( $captured[1]['cap'] )->toBe( 2 );
+	expect( $captured[2]['cap'] )->toBe( 7 );
+} );
+
+it( 'clamps a bulk cap below one up to the minimum of one', function (): void {
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/a', 'cap' => 4 ],
+	] );
+	$captured = null;
+	expect_link_group_save( $captured );
+	( new Link_Group_Repository() )->set_cap( [ 'g1' ], 0 );
+	expect( $captured[0]['cap'] )->toBe( 1 );
+} );
+
 it( 'finds a group by id and returns null for a miss', function (): void {
 	Functions\when( 'get_option' )->justReturn( [
 		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/', 'cap' => 2 ],

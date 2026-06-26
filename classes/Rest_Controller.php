@@ -69,6 +69,16 @@ final class Rest_Controller {
 			],
 		] );
 
+		// The literal bulk route is registered before the id pattern so a POST to
+		// /link-groups/bulk resolves here, not to update() with id="bulk".
+		register_rest_route( self::REST_NAMESPACE, '/' . self::ROUTE . '/bulk', [
+			[
+				'methods' => 'POST',
+				'callback' => $this->bulk( ... ),
+				'permission_callback' => $this->can_manage( ... ),
+			],
+		] );
+
 		register_rest_route( self::REST_NAMESPACE, '/' . self::ROUTE . '/(?P<id>[A-Za-z0-9_\-]+)', [
 			[
 				'methods' => 'POST, PUT, PATCH',
@@ -150,12 +160,80 @@ final class Rest_Controller {
 	}
 
 	/**
+	 * Apply a bulk action — delete or set-cap — to the listed link groups, then
+	 * re-render the table body for the request's current search, sort and page. The
+	 * action and ids are sanitised; an empty id set or an unrecognised action is a
+	 * 400, never a silent no-op.
+	 *
+	 * @since 1.1.0
+	 */
+	public function bulk( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$ids = $this->parse_ids( $request->get_param( 'ids' ) );
+		if ( $ids === [] ) {
+			return $this->invalid();
+		}
+
+		// Dispatch on the sanitised action; an unknown action falls through to 400.
+		return match ( sanitize_key( $this->to_string( $request->get_param( 'action' ) ) ) ) {
+			'delete' => $this->bulk_delete( $request, $ids ),
+			'set-cap' => $this->bulk_set_cap( $request, $ids, $request->get_param( 'cap' ) ),
+			default => $this->invalid(),
+		};
+	}
+
+	/**
 	 * Return the current table body HTML for the rows route.
 	 *
 	 * @since 1.1.0
 	 */
 	public function rows( \WP_REST_Request $request ): \WP_REST_Response {
 		return $this->rows_response( $request );
+	}
+
+	/**
+	 * Delete every listed group, then re-render the table body for the current view.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @param list<string> $ids
+	 */
+	private function bulk_delete( \WP_REST_Request $request, array $ids ): \WP_REST_Response {
+		$this->groups->delete_many( $ids );
+		return $this->rows_response( $request );
+	}
+
+	/**
+	 * Set the group cap on every listed group — clamped to a positive integer, the
+	 * same rule as the per-group cap — then re-render the table body for the current
+	 * view.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @param list<string> $ids
+	 */
+	private function bulk_set_cap( \WP_REST_Request $request, array $ids, mixed $cap ): \WP_REST_Response {
+		$this->groups->set_cap( $ids, absint( $this->to_string( $cap ) ) );
+		return $this->rows_response( $request );
+	}
+
+	/**
+	 * Parse target ids from either an array or a comma-separated string, sanitising
+	 * each as a key and dropping empties.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return list<string>
+	 */
+	private function parse_ids( mixed $value ): array {
+		$items = is_array( $value ) ? $value : explode( ',', $this->to_string( $value ) );
+		$result = [];
+		foreach ( $items as $item ) {
+			$id = sanitize_key( $this->to_string( $item ) );
+			if ( $id !== '' ) {
+				$result[] = $id;
+			}
+		}
+		return $result;
 	}
 
 	/**
