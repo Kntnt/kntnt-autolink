@@ -183,6 +183,30 @@ update_option( 'kntnt_autolink_link_groups', [
 ], false );
 $bulkcheck = "BULKCHECK status={$bulk_status} setcap={$bulk_setcap_ok} delete={$bulk_delete_ok} ENDBULK";
 
+// Exercise the Settings → Autolink sanitiser (issue #4) end-to-end against a real
+// WordPress. The same callback options.php runs on save must: reject a post type
+// outside the registered public set, parse the no-JS comma string for deny tags
+// into a list, coerce the post cap to a positive integer, and round-trip the rest
+// through Settings_Repository. The persisted value is deliberately equivalent to
+// the engine defaults (post + page enabled, the full deny-tag set, a generous
+// post cap of 10) so the front-page scenarios keep their footing.
+$settings_repo = new \Kntnt\Autolink\Settings_Repository();
+$settings_repo->save_settings( [
+	'post_types' => [ 'post', 'page', 'bogus_type' ],
+	'deny_tags' => 'h1, h2, h3, h4, h5, h6, a, code, pre, script, style',
+	'skip_class' => 'no-autolink',
+	'link_class' => 'kntnt-autolink',
+	'deny_xpath' => '',
+	'allow_only_xpath' => '',
+	'max_links_per_post' => '10',
+] );
+$reread = new \Kntnt\Autolink\Settings_Repository();
+$saved_rules = $reread->get_ruleset();
+$set_posttypes_ok = $reread->get_post_types() === [ 'post', 'page' ] ? 1 : 0;
+$set_denytags_ok = in_array( 'h2', $saved_rules->deny_tags, true ) ? 1 : 0;
+$set_cap_ok = $reread->sanitize_settings( [ 'max_links_per_post' => '0' ] )['max_links_per_post'] === 1 ? 1 : 0;
+$settingscheck = "SETTINGSCHECK posttypes={$set_posttypes_ok} denytags={$set_denytags_ok} cap={$set_cap_ok} ENDSETTINGS";
+
 // A published page (fixed id 42) set as the front page, so it renders at "/".
 if ( get_post( 42 ) === null ) {
 	wp_insert_post( [
@@ -190,7 +214,7 @@ if ( get_post( 42 ) === null ) {
 		'post_title' => 'Autolink Test',
 		'post_status' => 'publish',
 		'post_type' => 'page',
-		'post_content' => "<h2>About autolink</h2>\n<p>This is autolink in a paragraph.</p>\n<p>And nofollowme in a paragraph.</p>\n<!-- {$capcheck} -->\n<!-- {$restcheck} -->\n<!-- {$listcheck} -->\n<!-- {$bulkcheck} -->",
+		'post_content' => "<h2>About autolink</h2>\n<p>This is autolink in a paragraph.</p>\n<p>And nofollowme in a paragraph.</p>\n<!-- {$capcheck} -->\n<!-- {$restcheck} -->\n<!-- {$listcheck} -->\n<!-- {$bulkcheck} -->\n<!-- {$settingscheck} -->",
 	] );
 }
 update_option( 'show_on_front', 'page' );

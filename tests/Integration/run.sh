@@ -27,6 +27,10 @@
 #     resolves to the bulk handler (not update with id="bulk"), returns 200, and
 #     actually mutates — bulk set-cap raises a group's cap and bulk delete removes
 #     another.
+#   Scenario 7 (Settings-API sanitiser end-to-end): the structural-rules sanitiser
+#     options.php runs on save rejects a post type outside the registered public
+#     set, parses the no-JS comma string for deny tags into a list, and coerces the
+#     post cap to a positive integer — the saved option round-trips for the engine.
 #
 # Prerequisites: Node >= 20 with npx (uses @wp-playground/cli).
 # Usage: bash tests/Integration/run.sh
@@ -139,6 +143,9 @@ assert_contains "$OUT" 'LISTCHECK searchphrase=1 searchurl=1 sortpage=1 phraseso
 
 echo "---- Scenario 6: bulk REST route end-to-end ----"
 assert_contains "$OUT" 'BULKCHECK status=200 setcap=1 delete=1 ENDBULK' "bulk route resolves and applies set-cap and delete over REST"
+
+echo "---- Scenario 7: Settings-API sanitiser round-trip end-to-end ----"
+assert_contains "$OUT" 'SETTINGSCHECK posttypes=1 denytags=1 cap=1 ENDSETTINGS' "saved settings round-trip: unregistered post types rejected, no-JS deny-tag string parsed, post cap coerced positive"
 
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"

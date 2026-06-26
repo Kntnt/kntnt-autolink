@@ -76,7 +76,7 @@ final class Plugin {
 		// manager under Tools, the structural rules under Settings.
 		if ( is_admin() ) {
 			( new Admin\Tools_Page( $groups, $plugin_file, self::VERSION ) )->register_hooks();
-			( new Admin\Settings_Page( $settings ) )->register_hooks();
+			( new Admin\Settings_Page( $settings, $plugin_file, self::VERSION ) )->register_hooks();
 		}
 
 	}

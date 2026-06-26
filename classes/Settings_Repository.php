@@ -114,6 +114,47 @@ final class Settings_Repository {
 	}
 
 	/**
+	 * Sanitise raw settings input into the canonical option shape, without
+	 * persisting. This is the single source of truth for the option's shape and
+	 * the callback the Settings-API page registers via register_setting(); the
+	 * native save path on options.php runs it before update_option() stores the
+	 * result. Both the chip fields' JS hidden-input arrays and their no-JS
+	 * comma/newline strings are accepted, so the page saves the same either way.
+	 *
+	 * Two rules harden the targeting and limits: post types are intersected with
+	 * the registered public set, so a tampered POST or a typo in the no-JS text
+	 * field can never enable an unregistered type; and the post cap is coerced to
+	 * a positive integer, never zero or negative.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<array-key, mixed> $input Raw form input.
+	 * @return array<string, mixed>
+	 */
+	public function sanitize_settings( array $input ): array {
+
+		// Targeting is limited to the registered public post types; anything else
+		// the field could carry — a stale slug, a tampered value — is dropped.
+		$public_types = get_post_types( [ 'public' => true ] );
+		$post_types = array_values( array_filter(
+			$this->sanitise_keys( $input['post_types'] ?? [] ),
+			static fn ( string $type ): bool => isset( $public_types[ $type ] ),
+		) );
+
+		return [
+			'deny_tags' => $this->sanitise_tags( $input['deny_tags'] ?? [] ),
+			'skip_class' => isset( $input['skip_class'] ) ? sanitize_html_class( $this->to_string( $input['skip_class'] ) ) : self::DEFAULTS['skip_class'],
+			'deny_xpath' => isset( $input['deny_xpath'] ) ? trim( $this->to_string( $input['deny_xpath'] ) ) : '',
+			'allow_only_xpath' => isset( $input['allow_only_xpath'] ) ? trim( $this->to_string( $input['allow_only_xpath'] ) ) : '',
+			'link_class' => isset( $input['link_class'] ) ? sanitize_html_class( $this->to_string( $input['link_class'] ) ) : self::DEFAULTS['link_class'],
+			'max_links_per_post' => max( 1, abs( $this->to_int( $input['max_links_per_post'] ?? self::DEFAULTS['max_links_per_post'] ) ) ),
+			'post_types' => $post_types,
+			'terms' => $this->sanitise_terms( $input['terms'] ?? [] ),
+		];
+
+	}
+
+	/**
 	 * Sanitise and persist settings (non-autoloaded).
 	 *
 	 * @since 1.0.0
@@ -121,17 +162,7 @@ final class Settings_Repository {
 	 * @param array<string, mixed> $input Raw form input.
 	 */
 	public function save_settings( array $input ): void {
-		$sanitised = [
-			'deny_tags' => $this->sanitise_tags( $input['deny_tags'] ?? [] ),
-			'skip_class' => isset( $input['skip_class'] ) ? sanitize_html_class( $this->to_string( $input['skip_class'] ) ) : self::DEFAULTS['skip_class'],
-			'deny_xpath' => isset( $input['deny_xpath'] ) ? trim( $this->to_string( $input['deny_xpath'] ) ) : '',
-			'allow_only_xpath' => isset( $input['allow_only_xpath'] ) ? trim( $this->to_string( $input['allow_only_xpath'] ) ) : '',
-			'link_class' => isset( $input['link_class'] ) ? sanitize_html_class( $this->to_string( $input['link_class'] ) ) : self::DEFAULTS['link_class'],
-			'max_links_per_post' => isset( $input['max_links_per_post'] ) ? abs( $this->to_int( $input['max_links_per_post'] ) ) : self::DEFAULTS['max_links_per_post'],
-			'post_types' => $this->sanitise_keys( $input['post_types'] ?? self::DEFAULTS['post_types'] ),
-			'terms' => $this->sanitise_terms( $input['terms'] ?? [] ),
-		];
-		update_option( self::OPTION, $sanitised, false );
+		update_option( self::OPTION, $this->sanitize_settings( $input ), false );
 	}
 
 	/**
@@ -156,19 +187,50 @@ final class Settings_Repository {
 	}
 
 	/**
-	 * Sanitise a list of tag names: lowercased, reduced to [a-z0-9], de-duplicated.
+	 * Normalise a chip-field value into a list of trimmed, non-empty tokens. A
+	 * value is either the array of hidden inputs the chip JS serialises, or — with
+	 * JS off — the single comma/newline string the textarea posts; both reduce to
+	 * the same token list so the rest of the sanitiser is representation-agnostic.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return list<string>
+	 */
+	private function to_list( mixed $value ): array {
+
+		// A no-JS submission is one delimited string; split it on commas/newlines.
+		if ( is_string( $value ) ) {
+			$parts = preg_split( '/[\r\n,]+/', $value );
+			$value = $parts === false ? [] : $parts;
+		}
+
+		if ( ! is_array( $value ) ) {
+			return [];
+		}
+
+		$result = [];
+		foreach ( $value as $item ) {
+			$token = trim( $this->to_string( $item ) );
+			if ( $token !== '' ) {
+				$result[] = $token;
+			}
+		}
+		return $result;
+
+	}
+
+	/**
+	 * Sanitise tag names: lowercased, reduced to [a-z0-9], de-duplicated. Accepts
+	 * both the chip array and the no-JS comma/newline string.
 	 *
 	 * @since 1.0.0
 	 *
 	 * @return list<string>
 	 */
 	private function sanitise_tags( mixed $tags ): array {
-		if ( ! is_array( $tags ) ) {
-			return [];
-		}
 		$result = [];
-		foreach ( $tags as $tag ) {
-			$clean = preg_replace( '/[^a-z0-9]/', '', strtolower( $this->to_string( $tag ) ) );
+		foreach ( $this->to_list( $tags ) as $tag ) {
+			$clean = preg_replace( '/[^a-z0-9]/', '', strtolower( $tag ) );
 			if ( $clean !== null && $clean !== '' ) {
 				$result[] = $clean;
 			}
@@ -177,19 +239,17 @@ final class Settings_Repository {
 	}
 
 	/**
-	 * Sanitise a list of keys via sanitize_key, de-duplicated.
+	 * Sanitise keys via sanitize_key, de-duplicated. Accepts both the chip array
+	 * and the no-JS comma/newline string.
 	 *
 	 * @since 1.0.0
 	 *
 	 * @return list<string>
 	 */
 	private function sanitise_keys( mixed $values ): array {
-		if ( ! is_array( $values ) ) {
-			return [];
-		}
 		$result = [];
-		foreach ( $values as $value ) {
-			$clean = sanitize_key( $this->to_string( $value ) );
+		foreach ( $this->to_list( $values ) as $value ) {
+			$clean = sanitize_key( $value );
 			if ( $clean !== '' ) {
 				$result[] = $clean;
 			}
