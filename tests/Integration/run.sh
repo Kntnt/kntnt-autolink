@@ -15,9 +15,14 @@
 #     manage link groups but not the structural rules, while the administrator
 #     can do both.
 #   Scenario 4 (REST re-render in a non-admin context): the "render rows" route,
-#     dispatched while wp-admin is not loaded, returns the real table body without
-#     fataling on the admin-only convert_to_screen() — the regression the table's
-#     server-side re-render depends on.
+#     dispatched while wp-admin is not loaded, returns the real table body — plus
+#     the total/per-page pagination metadata the admin JS reads to keep the
+#     pagination chrome honest — without fataling on the admin-only
+#     convert_to_screen(), the regression the table's server-side re-render depends on.
+#   Scenario 5 (list search / sort / pagination end-to-end): the "render rows"
+#     route honours the search (by phrase and by URL), sort (first phrase and group
+#     cap) and page parameters, and a mutation re-renders the current view, proving
+#     the query layer is wired through REST exactly as the admin JS relies on.
 #
 # Prerequisites: Node >= 20 with npx (uses @wp-playground/cli).
 # Usage: bash tests/Integration/run.sh
@@ -123,7 +128,10 @@ echo "---- Scenario 3: capability gating in a real role context ----"
 assert_contains "$OUT" 'CAPCHECK ek=1 eo=0 ak=1 ao=1 ENDCAP' "editor manages link groups only; administrator manages link groups and rules"
 
 echo "---- Scenario 4: REST table re-render in a non-admin context ----"
-assert_contains "$OUT" 'RESTCHECK status=200 rows_ok=1 ENDREST' "render-rows route returns the real table body without a convert_to_screen fatal"
+assert_contains "$OUT" 'RESTCHECK status=200 rows_ok=1 meta_ok=1 ENDREST' "render-rows route returns the real table body plus the total/per-page pagination metadata, without a convert_to_screen fatal"
+
+echo "---- Scenario 5: list search / sort / pagination end-to-end ----"
+assert_contains "$OUT" 'LISTCHECK searchphrase=1 searchurl=1 sortpage=1 phrasesort=1 mutation=1 ENDLIST' "render-rows route honours search, sort and page, and a mutation preserves the current view"
 
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"

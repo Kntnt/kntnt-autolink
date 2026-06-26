@@ -13,6 +13,7 @@ declare( strict_types = 1 );
 namespace Kntnt\Autolink\Admin;
 
 use Kntnt\Autolink\Link_Group;
+use Kntnt\Autolink\Link_Group_Query;
 use Kntnt\Autolink\Link_Group_Repository;
 
 final class Link_Groups_List_Table extends \WP_List_Table {
@@ -45,14 +46,92 @@ final class Link_Groups_List_Table extends \WP_List_Table {
 	}
 
 	/**
-	 * Load every link group into the table; this issue ships no search, sort or
-	 * pagination, so the whole list is the current view.
+	 * The sortable columns: Phrases (by its first phrase) and Group cap. The URL
+	 * column is not sortable. Both sort ascending on the first click.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return array<string, array{0: string, 1: bool}>
+	 */
+	public function get_sortable_columns() {
+		return [
+			'phrases' => [ 'phrases', false ],
+			'cap' => [ 'cap', false ],
+		];
+	}
+
+	/**
+	 * Build the current view from the request: search, sort and page come from the
+	 * native list-table query parameters.
 	 *
 	 * @since 1.1.0
 	 */
 	public function prepare_items(): void {
-		$this->_column_headers = [ $this->get_columns(), [], [], 'phrases' ];
-		$this->items = $this->groups->all();
+		$this->prepare_for( $this->query_from_request() );
+	}
+
+	/**
+	 * Build the current view from an explicit query. The REST "render rows" route
+	 * uses this with the query it reconstructs from the request, so the table that
+	 * re-renders matches the one the user is looking at.
+	 *
+	 * @since 1.1.0
+	 */
+	public function prepare_for( Link_Group_Query $query ): void {
+
+		$this->_column_headers = [ $this->get_columns(), [], $this->get_sortable_columns(), 'phrases' ];
+
+		// Query all groups through the in-memory layer, then page the table and
+		// record the full match count so the native pagination controls are right.
+		$results = $query->results( $this->groups->all() );
+		$this->items = $results['items'];
+		$this->set_pagination_args( [
+			'total_items' => $results['total'],
+			'per_page' => $query->per_page,
+		] );
+
+	}
+
+	/**
+	 * The query the current request describes, with every parameter sanitised and
+	 * the page size taken from the per-page filter.
+	 *
+	 * @since 1.1.0
+	 */
+	private function query_from_request(): Link_Group_Query {
+		return new Link_Group_Query(
+			search: $this->request_param( 's' ),
+			orderby: $this->request_param( 'orderby' ),
+			order: $this->request_param( 'order' ),
+			page: max( 1, absint( $this->request_param( 'paged' ) ) ),
+			per_page: $this->per_page(),
+		);
+	}
+
+	/**
+	 * A single request parameter, unslashed and sanitised; empty when absent or
+	 * not a string. Reading these GET filters needs no nonce — they only narrow a
+	 * read-only listing, and every mutation is gated separately over REST.
+	 *
+	 * @since 1.1.0
+	 */
+	private function request_param( string $key ): string {
+		if ( ! isset( $_REQUEST[ $key ] ) || ! is_string( $_REQUEST[ $key ] ) ) {
+			return '';
+		}
+		return sanitize_text_field( wp_unslash( $_REQUEST[ $key ] ) );
+	}
+
+	/**
+	 * The page size, filterable so a site can tune how many groups a page shows. A
+	 * filter that returns a non-numeric value falls back to the default rather than
+	 * coercing to zero and breaking pagination.
+	 *
+	 * @since 1.1.0
+	 */
+	private function per_page(): int {
+		$per_page = apply_filters( Link_Group_Query::PER_PAGE_FILTER, Link_Group_Query::DEFAULT_PER_PAGE );
+		return max( 1, is_numeric( $per_page ) ? (int) $per_page : Link_Group_Query::DEFAULT_PER_PAGE );
 	}
 
 	/**

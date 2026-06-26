@@ -27,8 +27,10 @@ final class Rest_Controller {
 	/**
 	 * @since 1.1.0
 	 *
-	 * @param Link_Group_Repository $groups      Persistence for link groups.
-	 * @param \Closure              $render_rows fn(): string returning the current table body HTML.
+	 * @param Link_Group_Repository $groups Persistence for link groups.
+	 * @param \Closure(Link_Group_Query): array{rows: string, total: int} $render_rows
+	 *        Renders the table body for a query and reports the total match count,
+	 *        so the re-rendered table reflects the current search, sort and page.
 	 */
 	public function __construct(
 		private readonly Link_Group_Repository $groups,
@@ -104,7 +106,7 @@ final class Rest_Controller {
 			return $this->invalid();
 		}
 		$this->groups->save( $this->group_from( '', $request, $phrases, $url ) );
-		return $this->rows_response();
+		return $this->rows_response( $request );
 	}
 
 	/**
@@ -130,7 +132,7 @@ final class Rest_Controller {
 			return $this->invalid();
 		}
 		$this->groups->save( $this->group_from( $id, $request, $phrases, $url ) );
-		return $this->rows_response();
+		return $this->rows_response( $request );
 	}
 
 	/**
@@ -144,7 +146,7 @@ final class Rest_Controller {
 			return $this->invalid();
 		}
 		$this->groups->delete( $id );
-		return $this->rows_response();
+		return $this->rows_response( $request );
 	}
 
 	/**
@@ -153,7 +155,7 @@ final class Rest_Controller {
 	 * @since 1.1.0
 	 */
 	public function rows( \WP_REST_Request $request ): \WP_REST_Response {
-		return $this->rows_response();
+		return $this->rows_response( $request );
 	}
 
 	/**
@@ -175,12 +177,50 @@ final class Rest_Controller {
 	}
 
 	/**
-	 * A 200 response carrying the freshly re-rendered table body.
+	 * A 200 response carrying the freshly re-rendered table body together with the
+	 * total match count and the page size. The body reflects the request's search,
+	 * sort and page, so a mutation re-renders the very view the user is looking at;
+	 * the total and per-page let the client keep the pagination chrome honest and
+	 * recognise when a mutation has stranded it past the last page.
 	 *
 	 * @since 1.1.0
 	 */
-	private function rows_response(): \WP_REST_Response {
-		return new \WP_REST_Response( [ 'rows' => ( $this->render_rows )() ], 200 );
+	private function rows_response( \WP_REST_Request $request ): \WP_REST_Response {
+		$query = $this->query_from( $request );
+		$rendered = ( $this->render_rows )( $query );
+		return new \WP_REST_Response( [
+			'rows' => $rendered['rows'],
+			'total' => $rendered['total'],
+			'per_page' => $query->per_page,
+		], 200 );
+	}
+
+	/**
+	 * The list query the request describes — the same native parameters the list
+	 * table reads, sanitised again here, with the page size from the per-page
+	 * filter. Link_Group_Query normalises the column and direction to a closed set.
+	 *
+	 * @since 1.1.0
+	 */
+	private function query_from( \WP_REST_Request $request ): Link_Group_Query {
+		return new Link_Group_Query(
+			search: sanitize_text_field( $this->to_string( $request->get_param( 's' ) ) ),
+			orderby: sanitize_text_field( $this->to_string( $request->get_param( 'orderby' ) ) ),
+			order: sanitize_text_field( $this->to_string( $request->get_param( 'order' ) ) ),
+			page: max( 1, absint( $this->to_string( $request->get_param( 'paged' ) ) ) ),
+			per_page: $this->per_page(),
+		);
+	}
+
+	/**
+	 * The page size for the re-render, filterable to match the list table. A filter
+	 * that returns a non-numeric value falls back to the default.
+	 *
+	 * @since 1.1.0
+	 */
+	private function per_page(): int {
+		$per_page = apply_filters( Link_Group_Query::PER_PAGE_FILTER, Link_Group_Query::DEFAULT_PER_PAGE );
+		return max( 1, is_numeric( $per_page ) ? (int) $per_page : Link_Group_Query::DEFAULT_PER_PAGE );
 	}
 
 	/**

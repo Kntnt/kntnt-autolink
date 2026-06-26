@@ -86,6 +86,12 @@ final class Tools_Page {
 				'addNew' => __( 'Add link group', 'kntnt-autolink' ),
 				'edit' => __( 'Edit link group', 'kntnt-autolink' ),
 				'confirmDelete' => __( 'Delete this link group?', 'kntnt-autolink' ),
+				'firstPage' => __( 'First page', 'kntnt-autolink' ),
+				'prevPage' => __( 'Previous page', 'kntnt-autolink' ),
+				'nextPage' => __( 'Next page', 'kntnt-autolink' ),
+				'lastPage' => __( 'Last page', 'kntnt-autolink' ),
+				'currentPage' => __( 'Current Page', 'kntnt-autolink' ),
+				'of' => _x( 'of', 'paging: current page of total', 'kntnt-autolink' ),
 			],
 		] );
 
@@ -112,7 +118,15 @@ final class Tools_Page {
 		echo '<hr class="wp-header-end">';
 		echo '<p>' . esc_html__( 'A link group turns any of its phrases into links to one URL, sharing one group cap.', 'kntnt-autolink' ) . '</p>';
 
+		// The list lives in a GET form so the native search box, sortable column
+		// headers and pagination round-trip through the page URL. The hidden page
+		// field keeps the request on this admin screen across those reloads.
+		echo '<form method="get">';
+		echo '<input type="hidden" name="page" value="' . esc_attr( self::SLUG ) . '">';
+		$table->search_box( __( 'Search link groups', 'kntnt-autolink' ), 'kntnt-autolink-search' );
 		$table->display();
+		echo '</form>';
+
 		$this->render_modal();
 
 		echo '</div>';

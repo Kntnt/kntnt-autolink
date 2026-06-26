@@ -6,6 +6,23 @@ use Brain\Monkey\Functions;
 use Kntnt\Autolink\Admin\Link_Groups_List_Table;
 use Kntnt\Autolink\Link_Group_Repository;
 
+afterEach( function (): void {
+	$_REQUEST = [];
+} );
+
+/**
+ * Stub the request-reading and per-page functions prepare_items() now calls so a
+ * list table can honour search / sort / pagination from $_REQUEST in isolation.
+ * The per-page filter resolves to the given page size.
+ */
+function stub_request_list_table_functions( int $per_page = 20 ): void {
+	stub_list_table_functions();
+	Functions\when( 'wp_unslash' )->returnArg( 1 );
+	Functions\when( 'sanitize_text_field' )->alias( static fn ( $text ): string => trim( (string) $text ) );
+	Functions\when( 'absint' )->alias( static fn ( $value ): int => abs( (int) $value ) );
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $hook === 'kntnt_autolink_per_page' ? $per_page : $value );
+}
+
 /**
  * Stub the i18n and escaping functions the table renders through. The escapers
  * are aliased to real htmlspecialchars so the tests genuinely constrain
@@ -21,6 +38,8 @@ function stub_list_table_functions(): void {
 		echo htmlspecialchars( (string) $text, ENT_QUOTES );
 	} );
 	Functions\when( 'wp_kses_post' )->returnArg( 1 );
+	Functions\when( 'absint' )->alias( static fn ( $value ): int => abs( (int) $value ) );
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $value );
 }
 
 /**
@@ -73,6 +92,8 @@ it( 'keeps the row-action data-* attributes through the real kses escaping path 
 	Functions\when( 'esc_html_e' )->alias( static function ( $text, $domain = '' ): void {
 		echo htmlspecialchars( (string) $text, ENT_QUOTES );
 	} );
+	Functions\when( 'absint' )->alias( static fn ( $value ): int => abs( (int) $value ) );
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $value );
 
 	// A faithful wp_kses_post double: like WordPress core, it removes data-*
 	// attributes (they are absent from kses' allowed-attribute list for <a>). A
@@ -115,4 +136,53 @@ it( 'renders the empty-state placeholder when there are no groups', function ():
 	$table = make_list_table( [] );
 	$table->prepare_items();
 	expect( $table->rows_html() )->toContain( 'No link groups yet' );
+} );
+
+it( 'exposes the Phrases and Group cap columns as sortable, Phrases by its first phrase', function (): void {
+	stub_list_table_functions();
+	$sortable = make_list_table( [] )->get_sortable_columns();
+	expect( array_keys( $sortable ) )->toBe( [ 'phrases', 'cap' ] );
+	expect( $sortable['phrases'][0] )->toBe( 'phrases' );
+	expect( $sortable['cap'][0] )->toBe( 'cap' );
+} );
+
+it( 'narrows the rendered rows to the groups matching the search request parameter', function (): void {
+	stub_request_list_table_functions();
+	$_REQUEST = [ 's' => 'cat' ];
+	$table = make_list_table( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/c', 'cap' => 1 ],
+		[ 'id' => 'g2', 'phrases' => [ 'dog' ], 'url' => 'https://example.com/d', 'cap' => 1 ],
+	] );
+	$table->prepare_items();
+	$html = $table->rows_html();
+	expect( $html )->toContain( 'data-id="g1"' );
+	expect( $html )->not->toContain( 'data-id="g2"' );
+} );
+
+it( 'orders the rendered rows by group cap when the request asks for it', function (): void {
+	stub_request_list_table_functions();
+	$_REQUEST = [ 'orderby' => 'cap', 'order' => 'desc' ];
+	$table = make_list_table( [
+		[ 'id' => 'low', 'phrases' => [ 'a' ], 'url' => 'https://example.com/a', 'cap' => 1 ],
+		[ 'id' => 'high', 'phrases' => [ 'b' ], 'url' => 'https://example.com/b', 'cap' => 9 ],
+	] );
+	$table->prepare_items();
+	$html = $table->rows_html();
+	expect( strpos( $html, 'data-id="high"' ) )->toBeLessThan( strpos( $html, 'data-id="low"' ) );
+} );
+
+it( 'shows only the requested page and records the full total for pagination', function (): void {
+	stub_request_list_table_functions( per_page: 1 );
+	$_REQUEST = [ 'orderby' => 'phrases', 'order' => 'asc', 'paged' => '2' ];
+	$table = make_list_table( [
+		[ 'id' => 'g-apple', 'phrases' => [ 'apple' ], 'url' => 'https://example.com/a', 'cap' => 1 ],
+		[ 'id' => 'g-banana', 'phrases' => [ 'banana' ], 'url' => 'https://example.com/b', 'cap' => 1 ],
+		[ 'id' => 'g-cherry', 'phrases' => [ 'cherry' ], 'url' => 'https://example.com/c', 'cap' => 1 ],
+	] );
+	$table->prepare_items();
+	$html = $table->rows_html();
+	expect( $html )->toContain( 'data-id="g-banana"' );
+	expect( $html )->not->toContain( 'data-id="g-apple"' );
+	expect( $html )->not->toContain( 'data-id="g-cherry"' );
+	expect( $table->get_pagination_arg( 'total_items' ) )->toBe( 3 );
 } );

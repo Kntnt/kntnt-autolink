@@ -28,6 +28,7 @@ it( 'enqueues no assets on a screen other than its own', function (): void {
 
 it( 'enqueues the modal stylesheet, script and config only on the Autolink screen', function (): void {
 	Functions\when( '__' )->returnArg( 1 );
+	Functions\when( '_x' )->returnArg( 1 );
 	Functions\when( 'add_management_page' )->justReturn( 'tools_page_kntnt-autolink' );
 	Functions\when( 'plugins_url' )->alias( static fn ( $path, $file ): string => 'https://example.test/' . $path );
 	Functions\when( 'rest_url' )->alias( static fn ( $path = '' ): string => 'https://example.test/wp-json/' . $path );

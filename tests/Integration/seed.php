@@ -17,15 +17,22 @@ declare( strict_types = 1 );
 
 require_once '/wordpress/wp-load.php';
 
-// Two link groups. The first deliberately carries a generous group cap (5), well
+// Link groups. The first deliberately carries a generous group cap (5), well
 // above its number of occurrences, so the heading occurrence of its phrase can
 // only stay unlinked because the deny-tags rule skips headings — never because a
 // cap of one was exhausted by the paragraph occurrence. The second carries its
 // own nofollow / new-tab policy, so its link proves the per-group behaviour
-// end-to-end.
+// end-to-end. The remaining three (alpha / bravo / charlie) never appear in the
+// page content — they exist only to give the Tools list enough rows, with unique
+// first phrases and unique caps, to exercise search, sort and pagination over the
+// "render rows" route. Charlie's destination carries a unique "zebraurl" token so
+// a search can match by URL rather than by phrase.
 update_option( 'kntnt_autolink_link_groups', [
 	[ 'id' => 'g1', 'phrases' => [ 'autolink' ], 'url' => 'https://example.com/target', 'cap' => 5 ],
 	[ 'id' => 'g2', 'phrases' => [ 'nofollowme' ], 'url' => 'https://example.com/nofollow', 'cap' => 1, 'nofollow' => true, 'new_tab' => true ],
+	[ 'id' => 'gA', 'phrases' => [ 'alpha' ], 'url' => 'https://example.com/alpha', 'cap' => 2 ],
+	[ 'id' => 'gB', 'phrases' => [ 'bravo' ], 'url' => 'https://example.com/bravo', 'cap' => 4 ],
+	[ 'id' => 'gC', 'phrases' => [ 'charlie' ], 'url' => 'https://example.com/zebraurl', 'cap' => 3 ],
 ], false );
 
 // Capability gating: activation grants link-group management to the editor role
@@ -46,6 +53,7 @@ $capcheck = "CAPCHECK ek={$ek} eo={$eo} ak={$ak} ao={$ao} ENDCAP";
 // of aborting the seed, so the runner can assert the difference either way.
 $rest_status = 0;
 $rest_rows_ok = 0;
+$rest_meta_ok = 0;
 try {
 	$admins = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
 	wp_set_current_user( (int) ( $admins[0] ?? 1 ) );
@@ -54,10 +62,70 @@ try {
 	$data = $response->get_data();
 	$rows = is_array( $data ) && isset( $data['rows'] ) && is_string( $data['rows'] ) ? $data['rows'] : '';
 	$rest_rows_ok = $rest_status === 200 && str_contains( $rows, 'https://example.com/target' ) && str_contains( $rows, 'column-cap' ) ? 1 : 0;
+
+	// The response must also carry the pagination metadata the admin JS reads to keep
+	// the chrome honest after a mutation: the full match count and the page size.
+	$rest_meta_ok = is_array( $data ) && is_int( $data['total'] ?? null ) && $data['total'] === 5 && is_int( $data['per_page'] ?? null ) && $data['per_page'] >= 1 ? 1 : 0;
 } catch ( \Throwable $e ) {
 	$rest_status = 0;
+	$rest_meta_ok = 0;
 }
-$restcheck = "RESTCHECK status={$rest_status} rows_ok={$rest_rows_ok} ENDREST";
+$restcheck = "RESTCHECK status={$rest_status} rows_ok={$rest_rows_ok} meta_ok={$rest_meta_ok} ENDREST";
+
+// Exercise search, sort and pagination end-to-end over the same "render rows"
+// route the admin JS calls. Each dispatch goes through the real REST stack with
+// an administrator current, and the assertions are reduced to flags embedded in
+// the page so the shell runner can grep a single deterministic line. Pagination
+// is proven by tightening the page size to one through the per-page filter, so a
+// sort plus a page number isolates exactly one group.
+$list_search_phrase_ok = 0;
+$list_search_url_ok = 0;
+$list_sort_page_ok = 0;
+$list_phrase_sort_ok = 0;
+$list_mutation_ok = 0;
+try {
+	$admins = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+	wp_set_current_user( (int) ( $admins[0] ?? 1 ) );
+
+	$rows_for = static function ( string $method, string $route, array $params ): string {
+		$request = new WP_REST_Request( $method, $route );
+		foreach ( $params as $key => $value ) {
+			$request->set_param( $key, $value );
+		}
+		$response = rest_do_request( $request );
+		$data = $response->get_data();
+		return is_array( $data ) && isset( $data['rows'] ) && is_string( $data['rows'] ) ? $data['rows'] : '';
+	};
+
+	// Search narrows by phrase (bravo) and, separately, by URL (the zebraurl token
+	// that lives only in charlie's destination, not in any phrase).
+	$by_phrase = $rows_for( 'GET', '/kntnt-autolink/v1/link-groups/rows', [ 's' => 'bravo' ] );
+	$list_search_phrase_ok = str_contains( $by_phrase, 'example.com/bravo' ) && ! str_contains( $by_phrase, 'example.com/alpha' ) ? 1 : 0;
+	$by_url = $rows_for( 'GET', '/kntnt-autolink/v1/link-groups/rows', [ 's' => 'zebraurl' ] );
+	$list_search_url_ok = str_contains( $by_url, 'example.com/zebraurl' ) && ! str_contains( $by_url, 'example.com/bravo' ) ? 1 : 0;
+
+	// With one group per page, sorting by cap descending must put autolink (cap 5)
+	// alone on page 1 and bravo (cap 4) alone on page 2.
+	add_filter( 'kntnt_autolink_per_page', static fn (): int => 1 );
+	$cap_desc_p1 = $rows_for( 'GET', '/kntnt-autolink/v1/link-groups/rows', [ 'orderby' => 'cap', 'order' => 'desc', 'paged' => '1' ] );
+	$cap_desc_p2 = $rows_for( 'GET', '/kntnt-autolink/v1/link-groups/rows', [ 'orderby' => 'cap', 'order' => 'desc', 'paged' => '2' ] );
+	$list_sort_page_ok = str_contains( $cap_desc_p1, 'example.com/target' ) && ! str_contains( $cap_desc_p1, 'example.com/bravo' )
+		&& str_contains( $cap_desc_p2, 'example.com/bravo' ) && ! str_contains( $cap_desc_p2, 'example.com/target' ) ? 1 : 0;
+
+	// Sorting by first phrase ascending puts alpha first.
+	$phrase_asc_p1 = $rows_for( 'GET', '/kntnt-autolink/v1/link-groups/rows', [ 'orderby' => 'phrases', 'order' => 'asc', 'paged' => '1' ] );
+	$list_phrase_sort_ok = str_contains( $phrase_asc_p1, 'example.com/alpha' ) && ! str_contains( $phrase_asc_p1, 'example.com/bravo' ) ? 1 : 0;
+
+	// A mutation re-renders the current view: deleting alpha while a bravo search is
+	// active returns the rows for that search, not the whole unfiltered list.
+	$after_delete = $rows_for( 'DELETE', '/kntnt-autolink/v1/link-groups/gA', [ 's' => 'bravo' ] );
+	$list_mutation_ok = str_contains( $after_delete, 'example.com/bravo' ) && ! str_contains( $after_delete, 'example.com/target' ) ? 1 : 0;
+
+	remove_all_filters( 'kntnt_autolink_per_page' );
+} catch ( \Throwable $e ) {
+	$list_search_phrase_ok = 0;
+}
+$listcheck = "LISTCHECK searchphrase={$list_search_phrase_ok} searchurl={$list_search_url_ok} sortpage={$list_sort_page_ok} phrasesort={$list_phrase_sort_ok} mutation={$list_mutation_ok} ENDLIST";
 
 // A published page (fixed id 42) set as the front page, so it renders at "/".
 if ( get_post( 42 ) === null ) {
@@ -66,7 +134,7 @@ if ( get_post( 42 ) === null ) {
 		'post_title' => 'Autolink Test',
 		'post_status' => 'publish',
 		'post_type' => 'page',
-		'post_content' => "<h2>About autolink</h2>\n<p>This is autolink in a paragraph.</p>\n<p>And nofollowme in a paragraph.</p>\n<!-- {$capcheck} -->\n<!-- {$restcheck} -->",
+		'post_content' => "<h2>About autolink</h2>\n<p>This is autolink in a paragraph.</p>\n<p>And nofollowme in a paragraph.</p>\n<!-- {$capcheck} -->\n<!-- {$restcheck} -->\n<!-- {$listcheck} -->",
 	] );
 }
 update_option( 'show_on_front', 'page' );

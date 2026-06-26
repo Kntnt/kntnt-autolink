@@ -3,6 +3,7 @@
 declare( strict_types = 1 );
 
 use Brain\Monkey\Functions;
+use Kntnt\Autolink\Link_Group_Query;
 use Kntnt\Autolink\Link_Group_Repository;
 use Kntnt\Autolink\Rest_Controller;
 
@@ -15,6 +16,7 @@ function stub_rest_functions(): void {
 	Functions\when( 'sanitize_text_field' )->alias( static fn ( $text ): string => trim( (string) $text ) );
 	Functions\when( 'absint' )->alias( static fn ( $value ): int => abs( (int) $value ) );
 	Functions\when( 'sanitize_key' )->alias( static fn ( $key ): string => (string) preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $key ) ) );
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $value );
 	Functions\when( 'wp_generate_uuid4' )->justReturn( 'generated-uuid-1234' );
 }
 
@@ -23,7 +25,7 @@ function stub_rest_functions(): void {
  * response payload is assertable without a WP_List_Table.
  */
 function make_rest_controller(): Rest_Controller {
-	return new Rest_Controller( new Link_Group_Repository(), static fn (): string => 'ROWS-HTML' );
+	return new Rest_Controller( new Link_Group_Repository(), static fn ( Link_Group_Query $query ): array => [ 'rows' => 'ROWS-HTML', 'total' => 0 ] );
 }
 
 it( 'registers create / rows / update / delete under the kntnt-autolink/v1 namespace, each gated by the capability check', function (): void {
@@ -89,7 +91,7 @@ it( 'creates a sanitised group and returns the re-rendered rows', function (): v
 	$response = make_rest_controller()->create( $request );
 
 	expect( $response->get_status() )->toBe( 200 );
-	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML' ] );
+	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 0, 'per_page' => 20 ] );
 	expect( $captured )->toHaveCount( 1 );
 	expect( $captured[0]['id'] )->toBe( 'generated-uuid-1234' );
 	expect( $captured[0]['phrases'] )->toBe( [ 'cat', 'cats' ] );
@@ -187,7 +189,7 @@ it( 'deletes the group named by the route id and re-renders the rows', function 
 	$response = make_rest_controller()->delete( new WP_REST_Request( [ 'id' => 'g1' ] ) );
 
 	expect( $response->get_status() )->toBe( 200 );
-	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML' ] );
+	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 0, 'per_page' => 20 ] );
 	expect( $captured )->toHaveCount( 1 );
 	expect( $captured[0]['id'] )->toBe( 'g2' );
 } );
@@ -196,7 +198,132 @@ it( 'renders the current rows for the rows route', function (): void {
 	stub_rest_functions();
 	$response = make_rest_controller()->rows( new WP_REST_Request() );
 	expect( $response->get_status() )->toBe( 200 );
-	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML' ] );
+	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 0, 'per_page' => 20 ] );
+} );
+
+it( 'reports the page size in the rows response so the client can keep pagination honest', function (): void {
+	stub_rest_functions();
+
+	// The per-page filter is the single source of truth for the page size, and the
+	// admin JS needs it to know where the last page sits after a mutation; pin it to
+	// a non-default value so the assertion fails if the response ever drops it or
+	// reports the wrong size.
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $hook === Link_Group_Query::PER_PAGE_FILTER ? 5 : $value );
+
+	$response = make_rest_controller()->rows( new WP_REST_Request( [ 'paged' => '2' ] ) );
+
+	expect( $response->get_data()['per_page'] )->toBe( 5 );
+} );
+
+it( 'passes the search, sort and page request params to the renderer and returns its total on the rows route', function (): void {
+	stub_rest_functions();
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $value );
+	$captured = null;
+	$controller = new Rest_Controller(
+		new Link_Group_Repository(),
+		static function ( Link_Group_Query $query ) use ( &$captured ): array {
+			$captured = $query;
+			return [ 'rows' => 'ROWS-HTML', 'total' => 42 ];
+		},
+	);
+
+	$response = $controller->rows( new WP_REST_Request( [ 's' => 'cat', 'orderby' => 'cap', 'order' => 'desc', 'paged' => '3' ] ) );
+
+	expect( $response->get_status() )->toBe( 200 );
+	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 42, 'per_page' => 20 ] );
+	expect( $captured )->toBeInstanceOf( Link_Group_Query::class );
+	expect( $captured->search )->toBe( 'cat' );
+	expect( $captured->orderby )->toBe( 'cap' );
+	expect( $captured->order )->toBe( 'desc' );
+	expect( $captured->page )->toBe( 3 );
+} );
+
+/**
+ * A controller whose renderer records the Link_Group_Query it is handed, so a
+ * test can assert exactly which view a mutation re-renders. The non-default sort
+ * (cap / desc) the preservation tests pass makes those assertions load-bearing:
+ * were the controller to stop forwarding orderby / order, the query would fall
+ * back to the phrases / asc default and the assertion would fail.
+ *
+ * @param Link_Group_Query|null $captured Receives the query the renderer saw.
+ */
+function make_capturing_controller( ?Link_Group_Query &$captured ): Rest_Controller {
+	return new Rest_Controller(
+		new Link_Group_Repository(),
+		static function ( Link_Group_Query $query ) use ( &$captured ): array {
+			$captured = $query;
+			return [ 'rows' => 'ROWS-HTML', 'total' => 1 ];
+		},
+	);
+}
+
+it( 'preserves the current search, sort and page when it re-renders after a create', function (): void {
+	stub_rest_functions();
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $value );
+	Functions\when( 'get_option' )->justReturn( false );
+	Functions\when( 'update_option' )->justReturn( true );
+	$captured = null;
+	$controller = make_capturing_controller( $captured );
+
+	$controller->create( new WP_REST_Request( [
+		'phrases' => [ 'cat' ],
+		'url' => 'https://example.com/',
+		's' => 'dog',
+		'orderby' => 'cap',
+		'order' => 'desc',
+		'paged' => '3',
+	] ) );
+
+	expect( $captured->search )->toBe( 'dog' );
+	expect( $captured->orderby )->toBe( 'cap' );
+	expect( $captured->order )->toBe( 'desc' );
+	expect( $captured->page )->toBe( 3 );
+} );
+
+it( 'preserves the current search, sort and page when it re-renders after an edit', function (): void {
+	stub_rest_functions();
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $value );
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/', 'cap' => 1 ],
+	] );
+	Functions\when( 'update_option' )->justReturn( true );
+	$captured = null;
+	$controller = make_capturing_controller( $captured );
+
+	$controller->update( new WP_REST_Request( [
+		'id' => 'g1',
+		'phrases' => [ 'feline' ],
+		'url' => 'https://example.com/',
+		's' => 'dog',
+		'orderby' => 'cap',
+		'order' => 'desc',
+		'paged' => '3',
+	] ) );
+
+	expect( $captured->search )->toBe( 'dog' );
+	expect( $captured->orderby )->toBe( 'cap' );
+	expect( $captured->order )->toBe( 'desc' );
+	expect( $captured->page )->toBe( 3 );
+} );
+
+it( 'preserves the current search, sort and page when it re-renders after a delete', function (): void {
+	stub_rest_functions();
+	Functions\when( 'apply_filters' )->alias( static fn ( $hook, $value ) => $value );
+	Functions\when( 'get_option' )->justReturn( [
+		[ 'id' => 'g1', 'phrases' => [ 'cat' ], 'url' => 'https://example.com/', 'cap' => 1 ],
+		[ 'id' => 'g2', 'phrases' => [ 'dog' ], 'url' => 'https://example.com/d', 'cap' => 1 ],
+	] );
+	Functions\when( 'update_option' )->justReturn( true );
+	$captured = null;
+	$controller = make_capturing_controller( $captured );
+
+	$response = $controller->delete( new WP_REST_Request( [ 'id' => 'g1', 's' => 'dog', 'orderby' => 'cap', 'order' => 'desc', 'paged' => '2' ] ) );
+
+	expect( $response->get_data() )->toBe( [ 'rows' => 'ROWS-HTML', 'total' => 1, 'per_page' => 20 ] );
+	expect( $captured->search )->toBe( 'dog' );
+	expect( $captured->orderby )->toBe( 'cap' );
+	expect( $captured->order )->toBe( 'desc' );
+	expect( $captured->page )->toBe( 2 );
 } );
 
 it( 'returns the real list-table body HTML from the create route, not a stub', function (): void {
@@ -222,10 +349,10 @@ it( 'returns the real list-table body HTML from the create route, not a stub', f
 	} );
 
 	$repository = new Link_Group_Repository();
-	$render_rows = static function () use ( $repository ): string {
+	$render_rows = static function ( Link_Group_Query $query ) use ( $repository ): array {
 		$table = new \Kntnt\Autolink\Admin\Link_Groups_List_Table( $repository );
-		$table->prepare_items();
-		return $table->rows_html();
+		$table->prepare_for( $query );
+		return [ 'rows' => $table->rows_html(), 'total' => (int) $table->get_pagination_arg( 'total_items' ) ];
 	};
 	$controller = new Rest_Controller( $repository, $render_rows );
 

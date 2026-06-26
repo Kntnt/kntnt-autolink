@@ -106,6 +106,9 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 		/** @var array<array-key, mixed> */
 		protected $_column_headers = [];
 
+		/** @var array<string, mixed> */
+		protected $_pagination_args = [];
+
 		/**
 		 * @param array<string, mixed> $args
 		 */
@@ -113,6 +116,17 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 
 		public function has_items(): bool {
 			return $this->items !== [];
+		}
+
+		/**
+		 * @param array<string, mixed> $args
+		 */
+		public function set_pagination_args( $args ): void {
+			$this->_pagination_args = $args;
+		}
+
+		public function get_pagination_arg( string $key ): mixed {
+			return $this->_pagination_args[ $key ] ?? 0;
 		}
 
 		public function display_rows_or_placeholder(): void {

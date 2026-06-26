@@ -52,12 +52,14 @@ final class Plugin {
 		$content_filter = new Content_Filter( $settings, $groups, $linker );
 		$content_filter->register_hooks();
 
-		// The REST API re-renders the list-table body server-side after each change.
-		// Building the table needs WP_List_Table, whose constructor calls
-		// convert_to_screen()/WP_Screen — the whole admin screen and template API is
-		// absent on a REST (non-admin) request, so the closure loads it on demand in
-		// core's own order; require_once is a no-op when wp-admin is already loaded.
-		$render_rows = static function () use ( $groups ): string {
+		// The REST API re-renders the list-table body server-side after each change,
+		// for the current search/sort/page the request carries, and reports the total
+		// match count so the client can keep pagination honest. Building the table
+		// needs WP_List_Table, whose constructor calls convert_to_screen()/WP_Screen —
+		// the whole admin screen and template API is absent on a REST (non-admin)
+		// request, so the closure loads it on demand in core's own order; require_once
+		// is a no-op when wp-admin is already loaded.
+		$render_rows = static function ( Link_Group_Query $query ) use ( $groups ): array {
 			if ( ! class_exists( \WP_List_Table::class ) ) {
 				require_once ABSPATH . 'wp-admin/includes/class-wp-screen.php';
 				require_once ABSPATH . 'wp-admin/includes/screen.php';
@@ -65,8 +67,8 @@ final class Plugin {
 				require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 			}
 			$table = new Admin\Link_Groups_List_Table( $groups );
-			$table->prepare_items();
-			return $table->rows_html();
+			$table->prepare_for( $query );
+			return [ 'rows' => $table->rows_html(), 'total' => (int) $table->get_pagination_arg( 'total_items' ) ];
 		};
 		( new Rest_Controller( $groups, $render_rows ) )->register_hooks();
 
