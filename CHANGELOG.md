@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] – 2026-06-26
+
 ### Added
 
 - A domain glossary (`CONTEXT.md`) defining the project's ubiquitous language (Autolink, Link group, Phrase, Group cap, Post cap, Term targeting).
@@ -24,11 +26,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added a term-targeting control to the Settings → Autolink Targeting section: a repeatable stack of `[ taxonomy ▾ ] [ term chips ]` rows with an **Add taxonomy** button. The term chips autocomplete against the selected taxonomy through a new `manage_options`-gated REST route (`GET kntnt-autolink/v1/terms`), extending the chip widget through its `registerSource` / `data-suggest` seam (no fork). Selections persist through the Settings API as the `terms` map (taxonomy → term ids) and reload into the control. Behaviour is include-only: a post is autolinked when it is one of the enabled post types **and** carries **any** of the chosen terms; with no terms selected, every post of the enabled post types is processed — the section help text states this. The control degrades without JavaScript to a per-taxonomy textarea of term ids.
 - Renamed the `kntnt_autolink_keywords` filter to `kntnt_autolink_link_groups` (now passing `Link_Group[]`); the `kntnt_autolink_link_attributes` context now carries `group_id` and `matched_text` instead of `keyword_id` and `base`.
 
-### Fixed
-
-- A `PUT`/`PATCH` to `kntnt-autolink/v1/link-groups/{id}` for an unknown id now returns `404` instead of silently creating a new group.
-- Removed an out-of-scope cross-navigation link from the Tools screen to the Settings screen (deferred to the admin redesign).
-
 ## [1.0.0] - 2026-06-25
 
 ### Added
@@ -44,5 +41,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A `kntnt-autolink` class on every generated link, for theming and as an extension seam.
 - A Pest unit suite and a WordPress Playground integration suite.
 
-[Unreleased]: https://github.com/Kntnt/kntnt-autolink/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Kntnt/kntnt-autolink/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Kntnt/kntnt-autolink/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Kntnt/kntnt-autolink/releases/tag/v1.0.0
