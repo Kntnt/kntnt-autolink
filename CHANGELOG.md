@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A domain glossary (`CONTEXT.md`) defining the project's ubiquitous language (Autolink, Link group, Phrase, Group cap, Post cap, Term targeting).
+- Architecture decision records for the planned admin UI redesign: a server-rendered admin UI with a REST-backed modal (ADR 0001) and a Settings/Tools split of the admin information architecture (ADR 0002).
+
 ## [1.0.0] - 2026-06-25
 
 ### Added
